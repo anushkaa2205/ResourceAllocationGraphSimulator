@@ -1,0 +1,65 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f5f5f5;
+}
+
+.container {
+  padding: 20px;
+}
+.alert {
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+  font-size: 14px;
+}
+
+.alert-danger {
+  background: #ffecec;
+  border: 1px solid #ffbdbd;
+  color: #7a1a1a;
+}
+
+.alert-success {
+  background: #e9f7ee;
+  border: 1px solid #bfe8c7;
+  color: #0b5d2e;
+}
+
+/* make Reset buttons a bit smaller & spaced */
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+button:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+/* smooth transform for <g> elements (transform set inline) */
+g {
+  user-select: none;
+}
+
+/* toast */
+.toast-notice {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  background: rgba(34,34,34,0.92);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  z-index: 9999;
+  font-size: 13px;
+}
+
+/* nicer buttons */
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #cfcfcf;
+  background: #fff;
+  cursor: pointer;
+}
+button:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); transform: translateY(-1px); }
