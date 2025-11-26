@@ -1,8 +1,9 @@
-import React, { useRef, useEffect } from "react";
+// src/components/GraphCanvas.jsx
+import React, { useRef } from "react";
 
 /*
  Props:
-   graph: { processes: [], resources: [], edges: [] }
+   graph: { processes: [], resources: [], edges: [{id,from,to,type}] }
    cycles: array
    positions: { nodeId: {x,y} }
    onPositionChange: function(nodeId,x,y)
@@ -13,23 +14,23 @@ export default function GraphCanvas({ graph = {}, cycles = [], positions = {}, o
   const svgRef = useRef(null);
   const dragRef = useRef(null);
 
-  // compute nodePositions: use provided positions or fallback layout
+  // layout fallbacks
   const nodePositions = {};
-  const defaultSpacing = 150;
-  const startX = 100;
-  const processY = 100;
-  const resourceY = 260;
+  const spacing = 220;
+  const startX = 160;
+  const topY = 120;
+  const bottomY = 300;
 
   processes.forEach((p, i) => {
     const pos = positions[p];
-    nodePositions[p] = pos ? { ...pos, kind: "process" } : { x: startX + i * defaultSpacing, y: processY, kind: "process" };
+    nodePositions[p] = pos ? { ...pos, kind: "process" } : { x: startX + i * spacing, y: topY, kind: "process" };
   });
   resources.forEach((r, i) => {
     const pos = positions[r];
-    nodePositions[r] = pos ? { ...pos, kind: "resource" } : { x: startX + i * defaultSpacing, y: resourceY, kind: "resource" };
+    nodePositions[r] = pos ? { ...pos, kind: "resource" } : { x: startX + i * spacing, y: bottomY, kind: "resource" };
   });
 
-  // highlighted sets from cycles
+  // highlights from cycles
   const highlightedNodes = new Set();
   const highlightedEdges = new Set();
   (cycles || []).forEach(cycle => {
@@ -40,148 +41,104 @@ export default function GraphCanvas({ graph = {}, cycles = [], positions = {}, o
     }
   });
 
-  // dragging logic (pointer events)
-  useEffect(() => {
+  // convert client pointer to SVG coordinates
+  function pointerToSvg(e){
     const svg = svgRef.current;
-    if (!svg) return;
-    function onPointerMove(e) {
-      const s = dragRef.current;
-      if (!s) return;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX; pt.y = e.clientY;
-      const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
-      const newX = loc.x - s.offsetX;
-      const newY = loc.y - s.offsetY;
-      // move visually by setting transform
-      const g = svg.querySelector(`[data-node='${s.nodeId}']`);
-      if (g) g.setAttribute("transform", `translate(${newX - (nodePositions[s.nodeId]?.x||0)}, ${newY - (nodePositions[s.nodeId]?.y||0)})`);
-    }
-    function onPointerUp(e) {
-      const s = dragRef.current;
-      if (!s) return;
-      const pt = svg.createSVGPoint();
-      pt.x = e.clientX; pt.y = e.clientY;
-      const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
-      const finalX = loc.x - s.offsetX;
-      const finalY = loc.y - s.offsetY;
-      const g = svg.querySelector(`[data-node='${s.nodeId}']`);
-      if (g) g.removeAttribute("transform");
-      if (typeof onPositionChange === "function") onPositionChange(s.nodeId, Math.round(finalX), Math.round(finalY));
-      dragRef.current = null;
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    }
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, [onPositionChange, nodePositions]);
-
-  function handlePointerDown(ev, nodeId) {
-    ev.preventDefault();
-    const svg = svgRef.current;
-    if (!svg) return;
+    if (!svg) return { x: 0, y: 0 };
     const pt = svg.createSVGPoint();
-    pt.x = ev.clientX; pt.y = ev.clientY;
-    const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
-    const nodePos = nodePositions[nodeId] || { x: 0, y: 0 };
-    const offsetX = loc.x - nodePos.x;
-    const offsetY = loc.y - nodePos.y;
-    dragRef.current = { nodeId, offsetX, offsetY };
-    function onPointerMoveLocal(e) {
-      const s = dragRef.current;
-      if (!s) return;
-      const pt2 = svg.createSVGPoint(); pt2.x = e.clientX; pt2.y = e.clientY;
-      const loc2 = pt2.matrixTransform(svg.getScreenCTM().inverse());
-      const newX = loc2.x - s.offsetX;
-      const newY = loc2.y - s.offsetY;
-      const g = svg.querySelector(`[data-node='${s.nodeId}']`);
-      if (g) g.setAttribute("transform", `translate(${newX - (nodePositions[s.nodeId]?.x||0)}, ${newY - (nodePositions[s.nodeId]?.y||0)})`);
-    }
-    function onPointerUpLocal(e) {
-      const s = dragRef.current;
-      if (!s) return;
-      const pt3 = svg.createSVGPoint(); pt3.x = e.clientX; pt3.y = e.clientY;
-      const loc3 = pt3.matrixTransform(svg.getScreenCTM().inverse());
-      const finalX = loc3.x - s.offsetX;
-      const finalY = loc3.y - s.offsetY;
-      const g = svg.querySelector(`[data-node='${s.nodeId}']`);
-      if (g) g.removeAttribute("transform");
-      if (typeof onPositionChange === "function") onPositionChange(s.nodeId, Math.round(finalX), Math.round(finalY));
-      dragRef.current = null;
-      window.removeEventListener("pointermove", onPointerMoveLocal);
-      window.removeEventListener("pointerup", onPointerUpLocal);
-    }
-    window.addEventListener("pointermove", onPointerMoveLocal);
-    window.addEventListener("pointerup", onPointerUpLocal);
+    pt.x = e.clientX; pt.y = e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
 
-  // edges rendered first
-  return (
-    <svg ref={svgRef} width="100%" height="430" style={{ background: "#f7f7fc", border: "1px solid #ddd", marginTop: 20 }}>
-      <defs>
-        <marker id="arrow-default" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto">
-          <path d="M0,0 L10,5 L0,10" fill="#444" />
-        </marker>
-        <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto">
-          <path d="M0,0 L10,5 L0,10" fill="#d32f2f" />
-        </marker>
-      </defs>
+  function handlePointerDown(ev, nodeId){
+    ev.preventDefault();
+    const loc = pointerToSvg(ev);
+    const nodePos = nodePositions[nodeId] || { x:0, y:0 };
+    dragRef.current = { nodeId, offsetX: loc.x - nodePos.x, offsetY: loc.y - nodePos.y };
 
+    // set grabbing cursor immediately
+    const g = svgRef.current.querySelector(`[data-node='${nodeId}']`);
+    if (g) g.style.cursor = 'grabbing';
+
+    function onMove(e){
+      const s = dragRef.current; if (!s) return;
+      const loc2 = pointerToSvg(e);
+      const newX = loc2.x - s.offsetX;
+      const newY = loc2.y - s.offsetY;
+      const g2 = svgRef.current.querySelector(`[data-node='${s.nodeId}']`);
+      if (g2) g2.setAttribute("transform", `translate(${newX - (nodePositions[s.nodeId]?.x || 0)}, ${newY - (nodePositions[s.nodeId]?.y || 0)})`);
+    }
+
+    function onUp(e){
+      const s = dragRef.current; if (!s) return;
+      const loc3 = pointerToSvg(e);
+      const finalX = loc3.x - s.offsetX;
+      const finalY = loc3.y - s.offsetY;
+      const g3 = svgRef.current.querySelector(`[data-node='${s.nodeId}']`);
+      if (g3) {
+        g3.removeAttribute("transform");
+        g3.style.cursor = 'grab';
+      }
+      if (typeof onPositionChange === "function") onPositionChange(s.nodeId, Math.round(finalX), Math.round(finalY));
+      dragRef.current = null;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  return (
+    <svg ref={svgRef} width="100%" height="100%" viewBox={`0 0 ${Math.max(900, window.innerWidth)} ${Math.max(520, window.innerHeight - 220)}`} preserveAspectRatio="xMinYMin meet" style={{ display: "block" }}>
       {/* edges */}
       {edges.map(e => {
         const a = nodePositions[e.from];
         const b = nodePositions[e.to];
         if (!a || !b) return null;
         const isDead = highlightedEdges.has(`${e.from}->${e.to}`);
-        const stroke = isDead ? "#d32f2f" : e.type === "request" ? "#4a90e2" : "#27ae60";
-        const dash = isDead ? "0" : e.type === "request" ? "6 4" : "0";
-        const width = isDead ? 3.5 : 2.2;
-        const midX = (a.x + b.x) / 2;
-        const midY = (a.y + b.y) / 2;
+        const cls = isDead ? "edge dead-edge" : (e.type === "request" ? "edge request-edge" : "edge alloc-edge");
         return (
-          <g key={e.id || `${e.from}->${e.to}`}>
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={stroke} strokeWidth={width} strokeDasharray={dash} markerEnd={isDead ? "url(#arrow-red)" : "url(#arrow-default)"} />
-            <text x={midX} y={midY - 8} fontSize="11" textAnchor="middle" fill="#444">{e.type}</text>
+          <g key={e.id || `${e.from}->${e.to}`} className={cls}>
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
           </g>
         );
       })}
 
       {/* processes */}
       {processes.map(p => {
-        const pos = nodePositions[p];
-        if (!pos) return null;
-        const isDead = highlightedNodes.has(p);
-        // We render group at (pos.x,pos.y) with smooth transitions via CSS transform (set in CSS)
+        const pos = nodePositions[p]; if (!pos) return null;
+        const hl = highlightedNodes.has(p);
         return (
           <g
             key={p}
             data-node={p}
-            onPointerDown={(ev) => handlePointerDown(ev, p)}
+            className={`node process${hl ? " highlighted" : ""}`}
             transform={`translate(${pos.x}, ${pos.y})`}
-            style={{ cursor: "grab", transition: "transform 320ms ease" }}
+            onPointerDown={(ev) => handlePointerDown(ev, p)}
+            style={{ touchAction: "none" }}
           >
-            <circle cx={0} cy={0} r="28" fill={isDead ? "#ffebeb" : "#d8e8ff"} stroke={isDead ? "#d32f2f" : "#4a90e2"} strokeWidth={isDead ? 4 : 2} />
-            <text x={0} y={6} textAnchor="middle" fontSize="15" fontWeight="600" fill="#333">{p}</text>
+            <circle cx={0} cy={0} r={30} />
+            <text x={0} y={6} textAnchor="middle">{p}</text>
           </g>
         );
       })}
 
       {/* resources */}
       {resources.map(r => {
-        const pos = nodePositions[r];
-        if (!pos) return null;
-        const isDead = highlightedNodes.has(r);
+        const pos = nodePositions[r]; if (!pos) return null;
+        const hl = highlightedNodes.has(r);
         return (
           <g
             key={r}
             data-node={r}
-            onPointerDown={(ev) => handlePointerDown(ev, r)}
+            className={`node resource${hl ? " highlighted" : ""}`}
             transform={`translate(${pos.x}, ${pos.y})`}
-            style={{ cursor: "grab", transition: "transform 320ms ease" }}
+            onPointerDown={(ev) => handlePointerDown(ev, r)}
+            style={{ touchAction: "none" }}
           >
-            <rect x={-30} y={-22} width="60" height="44" rx="8" fill={isDead ? "#ffebeb" : "#efe4ff"} stroke={isDead ? "#d32f2f" : "#9b59b6"} strokeWidth={isDead ? 4 : 2} />
-            <text x={0} y={6} textAnchor="middle" fontSize="15" fontWeight="600" fill="#333">{r}</text>
+            <rect x={-36} y={-20} rx={10} width={72} height={40} />
+            <text x={0} y={6} textAnchor="middle">{r}</text>
           </g>
         );
       })}

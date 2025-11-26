@@ -1,6 +1,5 @@
 // src/components/ControlsPanel.jsx
 import React from "react";
-import EdgeForm from "./EdgeForm"; // keep if you use EdgeForm; otherwise adapt
 
 export default function ControlsPanel({
   processes = [],
@@ -11,33 +10,87 @@ export default function ControlsPanel({
   onResetLayout,
   onResetGraph
 }) {
+  const [process, setProcess] = React.useState("");
+  const [resource, setResource] = React.useState("");
+  const [type, setType] = React.useState("request");
+
+  function handleCreate() {
+    if (!process || !resource) return;
+    onCreateEdge({
+      from: type === "request" ? process : resource,
+      to: type === "request" ? resource : process,
+      type
+    });
+  }
+
   return (
-    <div style={{ marginTop: 12 }}>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>
-        <button onClick={onAddProcess}>Add Process</button>
-        <button onClick={onAddResource}>Add Resource</button>
+    <div>
+      {/* Buttons row */}
+      <div className="controls" style={{ marginBottom: "16px" }}>
+        <button className="btn-accent" onClick={onAddProcess}>Add Process</button>
+        <button className="btn-accent" onClick={onAddResource}>Add Resource</button>
+        <button onClick={onResetLayout}>Reset Layout</button>
+        <button onClick={onResetGraph}>Reset Graph</button>
+      </div>
 
-        {/* Reset buttons */}
-        <button onClick={onResetLayout} title="Re-align visible nodes to default layout">
-          Reset Layout
-        </button>
-        <button onClick={onResetGraph} title="Clear all processes, resources and edges">
-          Reset Graph
+      {/* Edge creation controls */}
+      <div className="controls">
+        {/* Process Select */}
+        <div className="select-wrap">
+          <select
+            value={process}
+            onChange={(e) => setProcess(e.target.value)}
+          >
+            <option value="">Process</option>
+            {processes.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Resource Select */}
+        <div className="select-wrap">
+          <select
+            value={resource}
+            onChange={(e) => setResource(e.target.value)}
+          >
+            <option value="">Resource</option>
+            {resources.map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Edge Type Radio */}
+        <label style={{ marginLeft: "10px" }}>
+          <input
+            type="radio"
+            name="etype"
+            checked={type === "request"}
+            onChange={() => setType("request")}
+          />{" "}
+          Request (P → R)
+        </label>
+
+        <label style={{ marginLeft: "10px" }}>
+          <input
+            type="radio"
+            name="etype"
+            checked={type === "allocation"}
+            onChange={() => setType("allocation")}
+          />{" "}
+          Allocation (R → P)
+        </label>
+
+        {/* Create Edge Button */}
+        <button onClick={handleCreate} style={{ marginLeft: "12px" }}>
+          Create Edge
         </button>
       </div>
 
-      <div style={{ marginTop: 6 }}>
-        <small style={{ color: "#444" }}>
-          Select a process and resource, then choose edge type and click "Create Edge".<br />
-          <strong>Request (P → R)</strong> means the process is asking for the resource.<br />
-          <strong>Allocation (R → P)</strong> means the resource is currently assigned to the process.
-        </small>
-      </div>
-
-      {/* Edge creation form component (if available) */}
-      {typeof EdgeForm === "function" ? (
-        <EdgeForm processes={processes} resources={resources} onCreateEdge={onCreateEdge} />
-      ) : null}
+      <small className="hint" style={{ marginTop: "8px" }}>
+        Tip: Request edges are dashed. Allocation edges are solid.
+      </small>
     </div>
   );
 }

@@ -1,65 +1,380 @@
-body {
-  font-family: sans-serif;
+/* ==============================
+   src/styles/global.css
+   Full cyberpunk / neon theme (single-file)
+   Overwrites duplicates, restores SVG colors
+   ============================== */
+
+/* ---------------------------
+   Theme variables
+   --------------------------- */
+:root{
+  --bg-dark: #04030a;        /* page background */
+  --bg-mid:  #0b0710;        /* panel background */
+  --panel-glass: rgba(255,255,255,0.02);
+  --text:     #eff6ff;
+  --muted:    #9ea9b6;
+
+  --neon-mag:    #ff39ea;   /* primary process */
+  --neon-violet: #8a5cff;   /* resource */
+  --neon-cyan:   #00f3ff;   /* request (dashed) */
+  --neon-green:  #34ffb3;   /* allocation (solid) */
+  --danger:      #ff5a7a;   /* deadlock */
+
+  --container-max: 1280px;
+  --shadow: 0 18px 60px rgba(2,6,24,0.75);
+}
+
+/* ---------------------------
+   Page & layout (single source of truth)
+   --------------------------- */
+html, body, #root {
+  height: 100%;
   margin: 0;
-  background: #f5f5f5;
+  background:
+    radial-gradient(900px 420px at 12% 8%, rgba(138,92,255,0.06), transparent 6%),
+    radial-gradient(900px 420px at 88% 92%, rgba(255,57,234,0.04), transparent 6%),
+    linear-gradient(180deg, #02020a 0%, #06030a 40%, #050208 100%);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  box-sizing: border-box;
+  overflow: hidden; /* app is single-viewport: container manages scroll if needed */
 }
 
+/* subtle scanlines */
+body::before{
+  content: "";
+  position: fixed;
+  inset: -10% -10% -10% -10%;
+  pointer-events: none;
+  background-image: linear-gradient(90deg, rgba(255,255,255,0.01) 1px, transparent 1px);
+  background-size: 100% 4px;
+  opacity: 0.02;
+  mix-blend-mode: overlay;
+}
+
+/* App shell */
+.app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Topbar */
+.topbar {
+  padding: 22px 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.002));
+  border-bottom: 1px solid rgba(255,255,255,0.02);
+  z-index: 30;
+}
+
+/* Main centered container that fills remaining viewport */
 .container {
-  padding: 20px;
-}
-.alert {
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 1px 0 rgba(0,0,0,0.03);
-  font-size: 14px;
-}
-
-.alert-danger {
-  background: #ffecec;
-  border: 1px solid #ffbdbd;
-  color: #7a1a1a;
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 20px 28px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: calc(100vh - 84px); /* reserve space for topbar */
 }
 
-.alert-success {
-  background: #e9f7ee;
-  border: 1px solid #bfe8c7;
-  color: #0b5d2e;
+/* State / controls row */
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
-/* make Reset buttons a bit smaller & spaced */
+/* Buttons */
 button {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,0.012), rgba(255,255,255,0.007));
+  color: var(--text);
   padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  background: #fff;
+  border-radius: 10px;
+  font-weight: 700;
   cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s;
+  box-shadow: 0 6px 30px rgba(0,0,0,0.6);
 }
-button:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
-/* smooth transform for <g> elements (transform set inline) */
-g {
-  user-select: none;
+button:hover { transform: translateY(-3px); box-shadow: 0 20px 60px rgba(138,92,255,0.08); border-color: rgba(255,57,234,0.16); }
+button:active { transform: translateY(-1px); }
+
+.btn-accent {
+  border-image: linear-gradient(90deg, var(--neon-mag), var(--neon-violet)) 1;
+  color: var(--neon-mag);
+}
+
+/* selects / inputs */
+select, input[type="text"], input[type="number"] {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+select:focus, input:focus { border-color: var(--neon-cyan); box-shadow: 0 6px 26px rgba(139,233,253,0.04); }
+
+/* hint text */
+small, .hint { color: var(--muted); font-size: 13px; }
+
+/* ---------------------------
+   Canvas area: fills remaining space
+   --------------------------- */
+.canvas-wrap {
+  flex: 1 1 auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.004), rgba(255,255,255,0.002));
+  border: 1px solid rgba(255,255,255,0.02);
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+}
+
+/* SVG should entirely fill the canvas-wrap */
+.canvas-wrap svg {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+  border-radius: 8px;
+  background: transparent;
+}
+
+/* bottom controls row */
+.bottom-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+/* alerts */
+.alert { border-radius: 10px; padding: 12px; margin-top: 8px; font-size: 14px; }
+.alert-success {
+  background: linear-gradient(180deg, rgba(52,255,179,0.04), rgba(52,255,179,0.02));
+  border: 1px solid rgba(52,255,179,0.08);
+  color: var(--neon-green);
+}
+.alert-danger {
+  background: linear-gradient(180deg, rgba(255,90,122,0.04), rgba(255,90,122,0.02));
+  border: 1px solid rgba(255,90,122,0.08);
+  color: var(--danger);
 }
 
 /* toast */
 .toast-notice {
   position: fixed;
-  right: 20px;
-  bottom: 24px;
-  background: rgba(34,34,34,0.92);
-  color: white;
+  right: 22px;
+  bottom: 28px;
+  background: linear-gradient(180deg,#190023,#0b0020);
+  color: var(--text);
   padding: 10px 14px;
-  border-radius: 8px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7);
   z-index: 9999;
   font-size: 13px;
 }
 
-/* nicer buttons */
-button {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #cfcfcf;
-  background: #fff;
-  cursor: pointer;
+/* ---------------------------
+   SVG / Graph visuals (ensures neon colors)
+   - GraphCanvas should render groups with these classes:
+     g.node.process
+     g.node.resource
+     g.edge.request-edge
+     g.edge.alloc-edge
+     g.edge.dead-edge
+   --------------------------- */
+
+/* Make <g> color control via currentColor; line uses currentColor */
+svg .node, svg .edge { color: inherit; }
+
+/* processes -> neon magenta */
+svg .node.process { color: var(--neon-mag) !important; }
+svg .node.process circle { stroke: currentColor !important; stroke-width: 3.2px !important; fill: transparent !important; }
+
+/* resources -> neon violet */
+svg .node.resource { color: var(--neon-violet) !important; }
+svg .node.resource rect { stroke: currentColor !important; stroke-width: 3.2px !important; fill: transparent !important; }
+
+/* node text should be readable white */
+svg .node text { fill: var(--text) !important; font-weight: 700; font-size: 13px; }
+
+/* edges: request = cyan dashed, allocation = green solid, dead = danger */
+svg .edge.request-edge { color: var(--neon-cyan) !important; }
+svg .edge.alloc-edge   { color: var(--neon-green) !important; }
+svg .edge.dead-edge    { color: var(--danger) !important; }
+
+svg .edge line { stroke: currentColor !important; stroke-linecap: round !important; opacity: 0.98 !important; }
+svg .edge.request-edge line { stroke-dasharray: 8 6 !important; stroke-width: 3.2px !important; }
+svg .edge.alloc-edge line   { stroke-dasharray: 0 !important; stroke-width: 3.2px !important; }
+svg .edge.dead-edge line    { stroke-width: 4.4px !important; }
+
+/* node cursor — grab/grabbing; NO hover scale transform */
+svg .node { cursor: grab; -webkit-user-select: none; user-select: none; }
+svg .node:active { cursor: grabbing; }
+g[data-node]:hover { transform: none !important; }
+
+/* highlighted node visual (subtle) */
+svg .node.highlighted circle,
+svg .node.highlighted rect {
+  stroke-width: 3.8px !important;
+  mix-blend-mode: screen !important;
 }
-button:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); transform: translateY(-1px); }
+
+/* ---------------------------
+   Accessibility / small screens
+   --------------------------- */
+@media (max-width: 980px) {
+  .container { padding: 12px; height: calc(100vh - 120px); }
+  .topbar { padding: 12px; }
+  svg .node text { font-size: 12px; }
+  .canvas-wrap { padding: 8px; }
+}
+
+/* ---------------------------
+   Debug helpers (if colors still missing)
+   Paste at the end of CSS to force colors when GraphCanvas has different class names
+   --------------------------- */
+
+/* If your GraphCanvas used different names, the following will still force reasonable defaults */
+svg circle, svg rect { stroke: var(--neon-mag) !important; fill: transparent !important; }
+svg line { stroke: var(--neon-cyan) !important; stroke-width: 3px !important; }
+
+/* End of theme file */
+/* ==========================
+  Themed select / option styles
+  Paste at END of src/styles/global.css
+   - uses existing theme variables
+   - adds custom caret, visible option text
+   ========================== */
+
+/* container for selects to ensure dropdown sits above canvas */
+.select-wrap { position: relative; z-index: 60; }
+
+/* basic select appearance */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.006), rgba(255,255,255,0.003));
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 8px 36px 8px 10px; /* right padding leaves room for caret */
+  border-radius: 8px;
+  min-width: 88px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: box-shadow .12s ease, border-color .12s ease, transform .08s;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 18px;
+}
+
+/* custom neon caret (SVG data URI) */
+select {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><path fill='%23bb9af7' d='M7 10l5 5 5-5z'/></svg>");
+}
+
+/* remove ugly OS dropdown arrow on IE/Edge */
+select::-ms-expand { display: none; }
+
+/* focus / open */
+select:focus {
+  border-color: var(--neon-cyan);
+  box-shadow: 0 6px 36px rgba(115,218,202,0.06), 0 0 0 4px rgba(115,218,202,0.06);
+}
+
+/* hover */
+select:hover { border-color: rgba(255,57,234,0.12); }
+
+/* style the option list (works on Chrome/Edge/Firefox) */
+select option {
+  background: linear-gradient(180deg, rgba(11,7,16,0.98), rgba(11,7,16,0.96));
+  color: var(--text);
+  padding: 6px 8px;
+  font-weight: 600;
+}
+
+/* selected option highlight in the popup */
+select option:checked,
+select option[selected] {
+  background: linear-gradient(90deg, rgba(138,92,255,0.14), rgba(255,57,234,0.08));
+  color: var(--text);
+}
+
+/* bigger open menu on touch / mobile */
+@media (max-width: 640px) {
+  select { min-width: 120px; padding: 10px 42px 10px 12px; }
+}
+
+/* small helper: make disabled options clearly visible */
+select option[disabled] { color: rgba(255,255,255,0.35); }
+
+/* ensure the select dropdown is above the canvas even if rendered inside stacking contexts */
+select, .select-wrap { position: relative; z-index: 60; }
+
+/* if you have a wrapper component for selects in your app, add this to it:
+   <div className="select-wrap"><select>...</select></div>
+   This helps prevent the menu from being clipped by container overflow. */
+/* ==========================
+   FIX: Make select dropdown text visible (dark popup)
+   ========================== */
+
+/* Force dark dropdown popup background */
+select option {
+  background-color: #0e0b14 !important;
+  color: var(--text) !important;
+}
+
+/* Hover highlight inside dropdown */
+select option:hover {
+  background-color: rgba(138,92,255,0.25) !important;
+  color: var(--text) !important;
+}
+
+/* Selected item highlight inside dropdown */
+select option:checked {
+  background-color: rgba(255,57,234,0.28) !important;
+  color: var(--text) !important;
+}
+
+/* Windows/Chrome uses "::-ms-value" / forced input area text */
+select,
+select:focus,
+select:active {
+  color: var(--text) !important;
+  background-color: #0e0b14 !important;
+}
+
+/* Remove forced Windows blue highlight ring */
+select:focus-visible {
+  outline: none !important;
+}
+
+/* Fix "white text on white option" bug in Chrome */
+select option {
+  -webkit-appearance: none !important;
+}
+
+/* Force menu popup to use our colors */
+select::-webkit-dropdown-text {
+  color: var(--text) !important;
+}
+select {
+  color: var(--text) !important;
+}
