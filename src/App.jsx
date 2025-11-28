@@ -1,28 +1,39 @@
-// src/App.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import ControlsPanel from "./components/ControlsPanel";
 import GraphCanvas from "./components/GraphCanvas";
 import DeadlockAlert from "./components/DeadlockAlert";
 import { createEmptyGraph, detectDeadlockDetailed } from "./utils/rag";
 
+// MODULE 2
+import { explainDeadlock } from "./analysis/explain";
+import { getFixSuggestions } from "./analysis/advisor";
+import { predictDeadlock } from "./analysis/predict";
+import { isSafeState } from "./analysis/bankers";
+import { computeMetrics } from "./analysis/metrics";
+
 let EDGE_COUNTER = 1;
 
 export default function App() {
-  // graph state: processes (array), resources (array), edges (array of {id,from,to,type})
-  const [graph, setGraph] = useState(() => createEmptyGraph());
 
-  // node positions persisted to localStorage
+  /* --------------------- APP STATE --------------------- */
+  const [graph, setGraph] = useState(() => createEmptyGraph());
   const [positions, setPositions] = useState(() => {
     try {
-      const raw = localStorage.getItem("rag_positions");
-      return raw ? JSON.parse(raw) : {};
+      return JSON.parse(localStorage.getItem("rag_positions")) || {};
     } catch {
       return {};
     }
   });
 
-  // small toast text shown for a short time
   const [toast, setToast] = useState(null);
+
+  const [analysis, setAnalysis] = useState({
+    explanation: null,
+    fixes: null,
+    prediction: null,
+    safety: null,
+    metrics: null
+  });
 
   useEffect(() => {
     try {
@@ -30,13 +41,17 @@ export default function App() {
     } catch {}
   }, [positions]);
 
-  // Helpers to add nodes
+
+  /* ------------------ ADD PROCESS & RESOURCE ------------------ */
+
   const addProcess = () => {
     const id = "P" + (graph.processes.length + 1);
     setGraph(prev => {
       const processes = [...prev.processes, id];
-      // add default position
-      setPositions(pos => ({ ...pos, [id]: defaultPosFor("process", processes.length - 1) }));
+      setPositions(p => ({
+        ...p,
+        [id]: defaultPosFor("process", processes.length - 1)
+      }));
       return { ...prev, processes };
     });
     showToast("Added " + id);
@@ -46,186 +61,216 @@ export default function App() {
     const id = "R" + (graph.resources.length + 1);
     setGraph(prev => {
       const resources = [...prev.resources, id];
-      setPositions(pos => ({ ...pos, [id]: defaultPosFor("resource", resources.length - 1) }));
+      setPositions(p => ({
+        ...p,
+        [id]: defaultPosFor("resource", resources.length - 1)
+      }));
       return { ...prev, resources };
     });
     showToast("Added " + id);
   };
 
+
+  /* --------------------------- POSITIONS --------------------------- */
+
   function defaultPosFor(kind, index) {
-    // fallback default position (will be re-laid out by resetLayout as needed)
-    const x = 120 + index * 150;
-    const y = kind === "process" ? 120 : 300;
-    return { x, y };
+    return { x: 140 + index * 150, y: kind === "process" ? 150 : 350 };
   }
 
-  // Create edge expected payload: { from, to, type } where type === "request" | "allocation"
+
+  /* -------------------------- EDGE HANDLING -------------------------- */
+
   function createEdge({ from, to, type }) {
     if (!from || !to || !type) return;
-    // prevent duplicates (same from,to,type)
+
     const exists = graph.edges.some(e => e.from === from && e.to === to && e.type === type);
-    if (exists) {
-      showToast("Edge already exists");
-      return;
-    }
-    const id = "e" + (EDGE_COUNTER++);
+    if (exists) return showToast("Edge already exists");
+
+    const id = "e" + EDGE_COUNTER++;
     const edge = { id, from, to, type };
-    setGraph(prev => ({ ...prev, edges: [...prev.edges, edge] }));
+
+    setGraph(prev => ({
+      ...prev,
+      edges: [...prev.edges, edge]
+    }));
+
     showToast(`Created edge ${id}`);
   }
 
   function removeEdge(id) {
-    setGraph(prev => ({ ...prev, edges: prev.edges.filter(e => e.id !== id) }));
+    setGraph(prev => ({
+      ...prev,
+      edges: prev.edges.filter(e => e.id !== id)
+    }));
     showToast("Edge removed");
   }
 
-  // Reset graph (clear nodes, edges and positions)
+
+  /* ----------------------------- RESET ----------------------------- */
+
   function resetGraph() {
     setGraph(createEmptyGraph());
     setPositions({});
-    try { localStorage.removeItem("rag_positions"); } catch {}
+    localStorage.removeItem("rag_positions");
     showToast("Graph reset");
   }
 
-  // Reset layout — two modes: 'smart' or 'grid'
-  function resetLayout(mode = "smart") {
-    // measure svg width if possible (so centering works). fallback width value
-    const svgRect = document.querySelector("svg")?.getBoundingClientRect();
-    const canvasWidth = svgRect ? Math.max(600, svgRect.width - 40) : 900;
 
-    const newPositions = {};
+  /* -------------------------- DRAG UPDATE -------------------------- */
 
-    if (mode === "grid") {
-      const cols = Math.max(1, Math.ceil(Math.sqrt(Math.max(graph.processes.length, graph.resources.length))));
-      const gapX = Math.max(120, Math.floor((canvasWidth - 120) / cols));
-      const startX = 80;
-
-      graph.processes.forEach((p, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        newPositions[p] = { x: startX + col * gapX, y: 100 + row * 120 };
-      });
-      graph.resources.forEach((r, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        newPositions[r] = { x: startX + col * gapX, y: 260 + row * 120 };
-      });
-
-      setPositions(newPositions);
-      showToast("Grid layout applied");
-      return;
-    }
-
-    // smart centered layout
-    const totalTop = graph.processes.length;
-    const totalBottom = graph.resources.length;
-    const topY = 120, bottomY = 300;
-    const usableWidth = Math.max(420, canvasWidth - 160);
-
-    if (totalTop > 0) {
-      const spacingTop = Math.min(220, usableWidth / totalTop);
-      const startTop = (canvasWidth - (spacingTop * (totalTop - 1))) / 2;
-      graph.processes.forEach((p, i) => {
-        newPositions[p] = { x: Math.round(startTop + i * spacingTop), y: topY };
-      });
-    }
-
-    if (totalBottom > 0) {
-      const spacingBottom = Math.min(220, usableWidth / totalBottom);
-      const startBottom = (canvasWidth - (spacingBottom * (totalBottom - 1))) / 2;
-      graph.resources.forEach((r, i) => {
-        newPositions[r] = { x: Math.round(startBottom + i * spacingBottom), y: bottomY };
-      });
-    }
-
-    setPositions(newPositions);
-    showToast("Layout reset");
-  }
-
-  // callback for node drag end
   const updateNodePosition = useCallback((nodeId, x, y) => {
-    setPositions(prev => ({ ...prev, [nodeId]: { x: Math.round(x), y: Math.round(y) } }));
+    setPositions(prev => ({
+      ...prev,
+      [nodeId]: { x: Math.round(x), y: Math.round(y) }
+    }));
   }, []);
 
-  // detect deadlock cycles using utility wrapper
+
+  /* ---------------------- DEADLOCK DETECTION ---------------------- */
+
   const detectionResult = detectDeadlockDetailed(graph);
 
-  // toast helper
-  function showToast(text, ms = 1400) {
-    setToast(text);
-    setTimeout(() => setToast(null), ms);
-  }
+  useEffect(() => {
+    const prediction = predictDeadlock({ ...graph, cycles: detectionResult.cycles });
+
+    setAnalysis({
+      explanation: explainDeadlock(graph, detectionResult.cycles),
+      fixes: getFixSuggestions(graph, detectionResult.cycles),
+      prediction,
+      safety: isSafeState(graph),
+      metrics: computeMetrics(graph)
+    });
+  }, [graph, detectionResult]);
+
+
+  /* ---------------------------- UI ----------------------------- */
 
   return (
-    <div className="app-root">
-      {/* Topbar / header */}
-      <div className="topbar">
-        <h1>Resource Allocation Graph Simulator</h1>
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      minHeight: "100vh",
+      overflowX: "hidden",
+      overflowY: "auto"
+    }}>
 
-        {/* ControlsPanel holds create-edge UI and Add/Reset buttons */}
+      {/* HEADER */}
+      <div style={{
+        padding: "20px 30px",
+        background: "var(--topbar-bg)",
+        borderBottom: "1px solid #333"
+      }}>
+        <h1 style={{ marginBottom: 15 }}>Resource Allocation Graph Simulator</h1>
+
         <ControlsPanel
           processes={graph.processes}
           resources={graph.resources}
           onAddProcess={addProcess}
           onAddResource={addResource}
           onCreateEdge={createEdge}
-          onResetLayout={() => resetLayout("smart")}
+          onResetLayout={() => {}}
           onResetGraph={resetGraph}
         />
-
-        <div className="hint" style={{ marginTop: 10 }}>
-          <small>
-            Tip: Request (P → R) creates a dashed edge from process to resource.
-            Allocation (R → P) creates a solid edge from resource to process.
-            Deadlocks are flagged only when there's a cycle involving two or more processes.
-          </small>
-        </div>
       </div>
 
-      {/* Main content */}
-      <div className="main-content">
-        <div className="state-panel">
+      {/* MAIN BODY */}
+      <div style={{
+        display: "flex",
+        width: "100%"
+      }}>
+
+        {/* SIDEBAR */}
+        <div style={{
+          width: 340,
+          padding: "10px",
+          overflow: "visible",
+          background: "var(--sidebar-bg)",
+          borderRight: "1px solid #333"
+        }}>
           <h3>Current System State</h3>
-          <p style={{ margin: 0 }}>
-            Processes: {graph.processes.length ? graph.processes.join(", ") : <em>(none)</em>}
-          </p>
-          <p style={{ marginTop: 6 }}>
-            Resources: {graph.resources.length ? graph.resources.join(", ") : <em>(none)</em>}
-          </p>
+
+          <p>Processes: {graph.processes.join(", ") || "(none)"}</p>
+          <p>Resources: {graph.resources.join(", ") || "(none)"}</p>
+
+          <div style={{
+            marginTop: 20,
+            padding: 16,
+            borderRadius: 12,
+            border: "1px solid #444",
+            background: "rgba(255,255,255,0.05)"
+          }}>
+            <h3>System Intelligence</h3>
+
+            <p><strong>Explanation:</strong><br />{analysis.explanation?.explanation}</p>
+
+            <p><strong>Fix Suggestions:</strong></p>
+            <ul>
+              {analysis.fixes?.map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+
+            <p><strong>Deadlock Risk:</strong><br />
+              {analysis.prediction?.riskLevel} ({analysis.prediction?.riskPercent}%)
+            </p>
+
+            <p><strong>Safe State?</strong><br />
+              {analysis.safety?.message}
+            </p>
+
+            {analysis.safety?.safeSequence?.length > 0 && (
+              <p><strong>Safe Sequence:</strong><br />
+                {analysis.safety.safeSequence.join(" → ")}
+              </p>
+            )}
+
+            <p><strong>Total Edges:</strong> {analysis.metrics?.totalEdges}</p>
+          </div>
         </div>
 
-        <div className="canvas-wrap">
-          <GraphCanvas
-            graph={graph}
-            cycles={detectionResult.cycles}
-            positions={positions}
-            onPositionChange={updateNodePosition}
-          />
-        </div>
+        {/* CANVAS AREA */}
+{/* CANVAS AREA */}
+<div style={{
+  flex: 1,
+  padding: "0px 0px 0px 0px",
+  overflow: "visible"
+}}>
 
-        <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />
+  {/* ⭐ Increased graph height */}
+  <div style={{ height: "420px"}}>
+    <GraphCanvas
+      graph={graph}
+      cycles={detectionResult.cycles}
+      positions={positions}
+      onPositionChange={updateNodePosition}
+    />
+  </div>
 
-        {/* Edges list with delete */}
-        <div style={{ marginTop: 16 }}>
-          <h4>Edges</h4>
-          <ul>
-            {graph.edges.map(e => (
-              <li key={e.id} style={{ marginBottom: 8, color: "var(--muted)" }}>
-                <strong>{e.id}</strong>: {e.from} → {e.to} ({e.type})
-                <button style={{ marginLeft: 10 }} onClick={() => removeEdge(e.id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-        </div>
+  {/* ⭐ Deadlock alert right below the graph */}
+  <div style={{ padding:"5px",marginTop: "0px" }}>
+    <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />
+  </div>
 
-        <div className="bottom-row" style={{ marginTop: 12 }}>
-          <button onClick={() => resetLayout("smart")}>Reset Layout (smart)</button>
-          <button onClick={() => resetLayout("grid")} style={{ marginLeft: 8 }}>Reset Layout (grid)</button>
-        </div>
+  {/* EDGE LIST */}
+  <div style={{ padding:"5px",marginTop: 20 }}>
+    <h3>Edges</h3>
+    <ul>
+      {graph.edges.map(e => (
+        <li key={e.id}>
+          {e.id}: {e.from} → {e.to} ({e.type})
+          <button style={{ marginLeft: 10 }} onClick={() => removeEdge(e.id)}>Delete</button>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+</div>
+
       </div>
 
-      {/* toast */}
-      {toast ? <div className="toast-notice">{toast}</div> : null}
+      {/* TOAST */}
+      {toast ? (
+        <div className="toast-notice">{toast}</div>
+      ) : null}
+
     </div>
   );
 }
