@@ -3,6 +3,8 @@ import ControlsPanel from "./components/ControlsPanel";
 import GraphCanvas from "./components/GraphCanvas";
 import DeadlockAlert from "./components/DeadlockAlert";
 import { createEmptyGraph, detectDeadlockDetailed } from "./utils/rag";
+import { sendGraphToBackend } from "./utils/rag.js";
+
 
 // MODULE 2
 import { explainDeadlock } from "./analysis/explain";
@@ -40,6 +42,12 @@ export default function App() {
       localStorage.setItem("rag_positions", JSON.stringify(positions));
     } catch {}
   }, [positions]);
+
+  /* -------------------------- TOAST FUNCTION (ADD THIS) -------------------------- */
+function showToast(text, ms = 1600) {
+  setToast(text);
+  setTimeout(() => setToast(null), ms);
+}
 
 
   /* ------------------ ADD PROCESS & RESOURCE ------------------ */
@@ -105,6 +113,38 @@ export default function App() {
     showToast("Edge removed");
   }
 
+   /* -------------------------- ANALYZE GRAPH (BACKEND CONNECT) -------------------------- */
+
+   const analyzeGraph = async () => {
+    console.log("Analyze clicked!");
+  
+    const graphToSend = {
+      processes: graph.processes,     // correct
+      resources: graph.resources,     // correct
+      request_edges: graph.edges
+        .filter(e => e.type === "request")
+        .map(e => [e.from, e.to]),
+  
+      allocation_edges: graph.edges
+        .filter(e => e.type === "allocation")
+        .map(e => [e.from, e.to])
+    };
+  
+    console.log("Sending to backend:", graphToSend);
+  
+    const result = await sendGraphToBackend(graphToSend);
+  
+    console.log("Result from backend:", result);
+  
+    if (result) {
+      if (result.deadlock) {
+        showToast("DEADLOCK: " + result.cycle.join(" → "));
+      } else {
+        showToast("Safe State — No Deadlock");
+      }
+    }
+  };
+  
 
   /* ----------------------------- RESET ----------------------------- */
 
@@ -140,7 +180,7 @@ export default function App() {
       safety: isSafeState(graph),
       metrics: computeMetrics(graph)
     });
-  }, [graph, detectionResult]);
+  }, [graph]);
 
 
   /* ---------------------------- UI ----------------------------- */
@@ -170,6 +210,8 @@ export default function App() {
           onCreateEdge={createEdge}
           onResetLayout={() => {}}
           onResetGraph={resetGraph}
+          analyzeGraph={analyzeGraph}
+
         />
       </div>
 
@@ -243,7 +285,7 @@ export default function App() {
       onPositionChange={updateNodePosition}
     />
   </div>
-
+ showToast
   {/* ⭐ Deadlock alert right below the graph */}
   <div style={{ padding:"5px",marginTop: "0px" }}>
     <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />

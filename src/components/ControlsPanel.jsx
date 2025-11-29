@@ -8,7 +8,8 @@ export default function ControlsPanel({
   onAddResource,
   onCreateEdge,
   onResetLayout,
-  onResetGraph
+  onResetGraph,
+  analyzeGraph
 }) {
   const [process, setProcess] = React.useState("");
   const [resource, setResource] = React.useState("");
@@ -31,6 +32,8 @@ export default function ControlsPanel({
         <button className="btn-accent" onClick={onAddResource}>Add Resource</button>
         <button onClick={onResetLayout}>Reset Layout</button>
         <button onClick={onResetGraph}>Reset Graph</button>
+        <button onClick={analyzeGraph}>Analyze Graph</button>
+
       </div>
 
       {/* Edge creation controls */}

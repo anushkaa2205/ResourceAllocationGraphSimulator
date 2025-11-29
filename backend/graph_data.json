@@ -1,0 +1,30 @@
+{
+    "processes": [
+        "P1",
+        "P2"
+    ],
+    "resources": [
+        "R1",
+        "R2"
+    ],
+    "request_edges": [
+        [
+            "P2",
+            "R1"
+        ],
+        [
+            "P1",
+            "R2"
+        ]
+    ],
+    "allocation_edges": [
+        [
+            "R2",
+            "P2"
+        ],
+        [
+            "R1",
+            "P1"
+        ]
+    ]
+}

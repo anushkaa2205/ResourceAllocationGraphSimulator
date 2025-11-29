@@ -1,0 +1,7 @@
+{
+    "deadlock": true,
+    "deadlock_cycle": [
+        "P2",
+        "P1"
+    ]
+}
