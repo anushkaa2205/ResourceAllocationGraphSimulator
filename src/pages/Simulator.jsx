@@ -159,7 +159,6 @@ export default function Simulator() {
         showToast("Safe — No Deadlock");
       }
 
-      // ⭐ IMPORTANT: PASS ANALYSIS TO ANALYSIS PAGE
       navigate("/analysis", {
         state: {
           analysis,
@@ -175,17 +174,104 @@ export default function Simulator() {
     }
   };
 
+  /* ---------- SAMPLE GRAPHS + LAYOUT HELPERS ---------- */
+
+  function computeDefaultPositions(g) {
+    const pos = {};
+    const pCount = g.processes.length;
+    const rCount = g.resources.length;
+    const widthGap = 900 / Math.max(1, Math.max(pCount, rCount));
+
+    g.processes.forEach((id, i) => {
+      pos[id] = { x: 120 + i * widthGap, y: 110 };
+    });
+    g.resources.forEach((id, i) => {
+      pos[id] = { x: 120 + i * widthGap, y: 360 };
+    });
+
+    return pos;
+  }
+
+  function resetLayout() {
+    const newPos = computeDefaultPositions(graph);
+    setPositions(newPos);
+    try {
+      localStorage.setItem("rag_positions", JSON.stringify(newPos));
+    } catch {}
+    showToast("Layout reset");
+  }
+
+  function sample_deadlock() {
+    return {
+      processes: ["P1", "P2"],
+      resources: ["R1", "R2"],
+      edges: [
+        { id: "e1", from: "P1", to: "R1", type: "request" },
+        { id: "e2", from: "R1", to: "P2", type: "allocation" },
+        { id: "e3", from: "P2", to: "R2", type: "request" },
+        { id: "e4", from: "R2", to: "P1", type: "allocation" }
+      ]
+    };
+  }
+
+  function sample_safe_simple() {
+    return {
+      processes: ["P1", "P2"],
+      resources: ["R1", "R2"],
+      edges: [
+        { id: "e1", from: "R1", to: "P1", type: "allocation" },
+        { id: "e2", from: "P2", to: "R2", type: "allocation" }
+      ]
+    };
+  }
+
+  function sample_complex() {
+    return {
+      processes: ["P1", "P2", "P3"],
+      resources: ["R1", "R2", "R3"],
+      edges: [
+        { id: "e1", from: "P1", to: "R1", type: "request" },
+        { id: "e2", from: "R1", to: "P2", type: "allocation" },
+        { id: "e3", from: "P2", to: "R2", type: "request" },
+        { id: "e4", from: "R2", to: "P3", type: "allocation" },
+        { id: "e5", from: "P3", to: "R3", type: "request" },
+        { id: "e6", from: "R3", to: "P1", type: "allocation" }
+      ]
+    };
+  }
+
+  function loadSampleGraph(sampleFn) {
+    const g = sampleFn();
+
+    let counter = 1;
+    g.edges = g.edges.map(e => ({
+      ...e,
+      id: e.id || `e-s${counter++}`
+    }));
+
+    setGraph(g);
+
+    const pos = computeDefaultPositions(g);
+    setPositions(pos);
+
+    try {
+      localStorage.setItem("rag_positions", JSON.stringify(pos));
+    } catch {}
+
+    showToast("Loaded sample graph");
+  }
+
   /* ------------------ RENDER ------------------ */
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-
-      {/* HEADER */}
-      <div style={{
-        padding: "20px 30px",
-        background: "var(--topbar-bg)",
-        borderBottom: "1px solid #222"
-      }}>
+      <div
+        style={{
+          padding: "20px 30px",
+          background: "var(--topbar-bg)",
+          borderBottom: "1px solid #222"
+        }}
+      >
         <h1>RAG Simulator</h1>
 
         <ControlsPanel
@@ -194,17 +280,16 @@ export default function Simulator() {
           onAddProcess={addProcess}
           onAddResource={addResource}
           onCreateEdge={createEdge}
-          onResetLayout={() => {}}
+          onResetLayout={resetLayout}
           onResetGraph={resetGraph}
           analyzeGraph={analyzeGraph}
+          onLoadSampleDeadlock={() => loadSampleGraph(sample_deadlock)}
+          onLoadSampleSafe={() => loadSampleGraph(sample_safe_simple)}
+          onLoadSampleComplex={() => loadSampleGraph(sample_complex)}
         />
       </div>
 
-
-      {/* MAIN CANVAS AREA */}
       <div style={{ flex: 1, padding: 10 }}>
-
-        {/* GRAPH */}
         <div style={{ height: 420 }}>
           <GraphCanvas
             graph={graph}
@@ -214,14 +299,8 @@ export default function Simulator() {
           />
         </div>
 
-        {/* DEADLOCK ALERT */}
-        <DeadlockAlert
-          result={detectionResult}
-          graph={graph}
-          onResetGraph={resetGraph}
-        />
+        <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />
 
-        {/* EDGE LIST */}
         <h3 style={{ marginTop: 20 }}>Edges</h3>
         <ul>
           {graph.edges.map(e => (
@@ -238,13 +317,8 @@ export default function Simulator() {
         </ul>
       </div>
 
+      {toast && <div className="toast-notice">{toast}</div>}
 
-      {/* TOAST */}
-      {toast && (
-        <div className="toast-notice">{toast}</div>
-      )}
-
-      {/* VISUALIZER MODAL */}
       <VisualizerModal
         open={visualizationOpen}
         onClose={() => setVisualizationOpen(false)}
@@ -263,7 +337,6 @@ export default function Simulator() {
         backendVisualizationBase64={visualization}
         onRegenerate={analyzeGraph}
       />
-
     </div>
   );
 }

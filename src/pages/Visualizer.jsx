@@ -53,7 +53,11 @@ export default function Visualizer() {
 
   // Expecting state: { graph, cycle, positions, backendVisualizationBase64 }
   const incoming = location.state || {};
-  const graph = incoming.graph || { processes: [], resources: [], request_edges: [], allocation_edges: [] };
+const graph = incoming.graph || {};
+graph.processes ||= [];
+graph.resources ||= [];
+graph.request_edges ||= [];
+graph.allocation_edges ||= [];
   const cycle = incoming.cycle || []; // array of node ids in cycle
   const positions = incoming.positions || {};
 

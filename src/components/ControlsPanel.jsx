@@ -1,99 +1,65 @@
-// src/components/ControlsPanel.jsx
 import React from "react";
 
 export default function ControlsPanel({
-  processes = [],
-  resources = [],
+  processes,
+  resources,
   onAddProcess,
   onAddResource,
   onCreateEdge,
   onResetLayout,
   onResetGraph,
+  onLoadSampleDeadlock,
+  onLoadSampleSafe,
+  onLoadSampleComplex,
   analyzeGraph
 }) {
-  const [process, setProcess] = React.useState("");
-  const [resource, setResource] = React.useState("");
-  const [type, setType] = React.useState("request");
-
-  function handleCreate() {
-    if (!process || !resource) return;
-    onCreateEdge({
-      from: type === "request" ? process : resource,
-      to: type === "request" ? resource : process,
-      type
-    });
-  }
-
   return (
-    <div>
-      {/* Buttons row */}
-      <div className="controls" style={{ marginBottom: "16px" }}>
-        <button className="btn-accent" onClick={onAddProcess}>Add Process</button>
-        <button className="btn-accent" onClick={onAddResource}>Add Resource</button>
-        <button onClick={onResetLayout}>Reset Layout</button>
-        <button onClick={onResetGraph}>Reset Graph</button>
-        <button onClick={analyzeGraph}>Analyze Graph</button>
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 10,
+        alignItems: "center",
+        marginBottom: 10
+      }}
+    >
+      {/* BASIC CONTROLS */}
+      <button onClick={onAddProcess} className="btn-purple">
+        Add Process
+      </button>
 
-      </div>
+      <button onClick={onAddResource} className="btn-purple">
+        Add Resource
+      </button>
 
-      {/* Edge creation controls */}
-      <div className="controls">
-        {/* Process Select */}
-        <div className="select-wrap">
-          <select
-            value={process}
-            onChange={(e) => setProcess(e.target.value)}
-          >
-            <option value="">Process</option>
-            {processes.map(p => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-        </div>
+      <button onClick={onCreateEdge} className="btn-blue">
+        Create Edge
+      </button>
 
-        {/* Resource Select */}
-        <div className="select-wrap">
-          <select
-            value={resource}
-            onChange={(e) => setResource(e.target.value)}
-          >
-            <option value="">Resource</option>
-            {resources.map(r => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
-        </div>
+      <button onClick={onResetLayout} className="btn-gray">
+        Reset Layout
+      </button>
 
-        {/* Edge Type Radio */}
-        <label style={{ marginLeft: "10px" }}>
-          <input
-            type="radio"
-            name="etype"
-            checked={type === "request"}
-            onChange={() => setType("request")}
-          />{" "}
-          Request (P → R)
-        </label>
+      <button onClick={onResetGraph} className="btn-red">
+        Reset Graph
+      </button>
 
-        <label style={{ marginLeft: "10px" }}>
-          <input
-            type="radio"
-            name="etype"
-            checked={type === "allocation"}
-            onChange={() => setType("allocation")}
-          />{" "}
-          Allocation (R → P)
-        </label>
+      <button onClick={analyzeGraph} className="btn-green">
+        Analyze Graph
+      </button>
 
-        {/* Create Edge Button */}
-        <button onClick={handleCreate} style={{ marginLeft: "12px" }}>
-          Create Edge
-        </button>
-      </div>
+      {/* SAMPLE GRAPH LOADERS */}
+      <button onClick={onLoadSampleDeadlock} className="btn-orange">
+        Load Deadlock Example
+      </button>
 
-      <small className="hint" style={{ marginTop: "8px" }}>
-        Tip: Request edges are dashed. Allocation edges are solid.
-      </small>
+      <button onClick={onLoadSampleSafe} className="btn-orange">
+        Load Safe Example
+      </button>
+
+      <button onClick={onLoadSampleComplex} className="btn-orange">
+        Load Complex Example
+      </button>
     </div>
   );
 }

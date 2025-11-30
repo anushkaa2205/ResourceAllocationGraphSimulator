@@ -432,3 +432,86 @@ select {
   100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(255,65,108,0)); }
 }
 .pulse { animation: pulseAnim 1.1s ease-in-out infinite; transform-origin: center; }
+/*  ----- UI POLISH: global.css ----- */
+:root{
+  --bg:#0f0f13;
+  --card-bg: rgba(255,255,255,0.03);
+  --muted:#9aa6b2;
+  --accent:#8b5cf6;
+  --accent-2:#ff4d7e;
+  --glass: rgba(255,255,255,0.03);
+  --panel:#0b1220;
+}
+
+/* body */
+body {
+  background: linear-gradient(180deg,#07060a 0%,#0f0b12 55%);
+  color: #e6eef6;
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* header + nav */
+.topbar {
+  padding: 20px 28px;
+  background: linear-gradient(90deg, rgba(139,92,246,0.06), rgba(255,77,126,0.02));
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+/* card style */
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.03);
+}
+
+/* buttons */
+.btn {
+  background: transparent;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-right: 8px;
+}
+.btn.primary {
+  background: linear-gradient(90deg,var(--accent),var(--accent-2));
+  border: none;
+  box-shadow: 0 6px 20px rgba(139,92,246,0.12);
+}
+.btn.ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* cards with header */
+.panel-title { font-size: 1.1rem; color: #dfe8f5; margin: 0 0 8px; }
+
+/* legend / small text */
+.small { color: var(--muted); font-size: 0.92rem; }
+
+/* toast */
+.toast-notice {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  background: rgba(0,0,0,0.55);
+  border: 1px solid rgba(255,255,255,0.04);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  z-index: 9999;
+}
+
+/* small responsive rules */
+@media (max-width: 920px){
+  .btn { padding: 6px 8px; font-size: 14px; }
+}
