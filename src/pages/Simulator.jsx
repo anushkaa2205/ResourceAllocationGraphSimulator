@@ -66,7 +66,7 @@ export default function Simulator() {
 
   /* ------------------ HELPERS ------------------ */
 
-  const showToast = (text, ms = 1600) => {
+  const showToast = (text, ms = 1500) => {
     setToast(text);
     setTimeout(() => setToast(null), ms);
   };
@@ -74,6 +74,86 @@ export default function Simulator() {
   const defaultPosFor = (kind, i) => {
     return { x: 140 + i * 150, y: kind === "process" ? 150 : 350 };
   };
+
+  /* ---------- BATCH 5: SAMPLE + LAYOUT HELPERS ---------- */
+
+  function computeDefaultPositions(g) {
+    const pos = {};
+    const p = g.processes.length;
+    const r = g.resources.length;
+    const gap = 900 / Math.max(1, Math.max(p, r));
+
+    g.processes.forEach((id, i) => {
+      pos[id] = { x: 120 + i * gap, y: 110 };
+    });
+
+    g.resources.forEach((id, i) => {
+      pos[id] = { x: 120 + i * gap, y: 360 };
+    });
+
+    return pos;
+  }
+
+  function resetLayout() {
+    const newPos = computeDefaultPositions(graph);
+    setPositions(newPos);
+    localStorage.setItem("rag_positions", JSON.stringify(newPos));
+    showToast("Layout reset");
+  }
+
+  function sample_deadlock() {
+    return {
+      processes: ["P1", "P2"],
+      resources: ["R1", "R2"],
+      edges: [
+        { id: "e1", from: "P1", to: "R1", type: "request" },
+        { id: "e2", from: "R1", to: "P2", type: "allocation" },
+        { id: "e3", from: "P2", to: "R2", type: "request" },
+        { id: "e4", from: "R2", to: "P1", type: "allocation" }
+      ]
+    };
+  }
+
+  function sample_safe_simple() {
+    return {
+      processes: ["P1", "P2"],
+      resources: ["R1", "R2"],
+      edges: [
+        { id: "e1", from: "R1", to: "P1", type: "allocation" },
+        { id: "e2", from: "R2", to: "P2", type: "allocation" }
+      ]
+    };
+  }
+
+  function sample_complex() {
+    return {
+      processes: ["P1", "P2", "P3"],
+      resources: ["R1", "R2", "R3"],
+      edges: [
+        { id: "e1", from: "P1", to: "R1", type: "request" },
+        { id: "e2", from: "R1", to: "P2", type: "allocation" },
+        { id: "e3", from: "P2", to: "R2", type: "request" },
+        { id: "e4", from: "R2", to: "P3", type: "allocation" },
+        { id: "e5", from: "P3", to: "R3", type: "request" },
+        { id: "e6", from: "R3", to: "P1", type: "allocation" }
+      ]
+    };
+  }
+
+  function loadSampleGraph(fn) {
+    const g = fn();
+    let counter = 1;
+    g.edges = g.edges.map(e => ({ ...e, id: e.id || `e${counter++}` }));
+    setGraph(g);
+
+    const pos = computeDefaultPositions(g);
+    setPositions(pos);
+    localStorage.setItem("rag_positions", JSON.stringify(pos));
+
+    showToast("Sample Loaded");
+  }
+
+  /* ------------------ GRAPH OPERATIONS ------------------ */
 
   const addProcess = () => {
     const id = "P" + (graph.processes.length + 1);
@@ -137,7 +217,6 @@ export default function Simulator() {
   }, []);
 
   /* ------------------ ANALYZE GRAPH ------------------ */
-
   const analyzeGraph = async () => {
     const payload = {
       processes: graph.processes,
@@ -150,128 +229,32 @@ export default function Simulator() {
         .map(e => [e.from, e.to])
     };
 
-    const result = await sendGraphToBackend(payload);
+    const res = await sendGraphToBackend(payload);
 
-    if (result) {
-      if (result.deadlock) {
-        showToast("DEADLOCK: " + result.cycle.join(" → "));
-      } else {
-        showToast("Safe — No Deadlock");
-      }
+    if (res) {
+      if (res.deadlock) showToast("DEADLOCK: " + res.cycle.join(" → "));
+      else showToast("Safe — No Deadlock");
 
       navigate("/analysis", {
-        state: {
-          analysis,
-          graph,
-          cycle: detectionResult.cycles
-        }
+        state: { analysis, graph, cycle: detectionResult.cycles }
       });
 
-      if (result.visualization) {
-        setVisualization(result.visualization);
+      if (res.visualization) {
+        setVisualization(res.visualization);
         setVisualizationOpen(true);
       }
     }
   };
 
-  /* ---------- SAMPLE GRAPHS + LAYOUT HELPERS ---------- */
-
-  function computeDefaultPositions(g) {
-    const pos = {};
-    const pCount = g.processes.length;
-    const rCount = g.resources.length;
-    const widthGap = 900 / Math.max(1, Math.max(pCount, rCount));
-
-    g.processes.forEach((id, i) => {
-      pos[id] = { x: 120 + i * widthGap, y: 110 };
-    });
-    g.resources.forEach((id, i) => {
-      pos[id] = { x: 120 + i * widthGap, y: 360 };
-    });
-
-    return pos;
-  }
-
-  function resetLayout() {
-    const newPos = computeDefaultPositions(graph);
-    setPositions(newPos);
-    try {
-      localStorage.setItem("rag_positions", JSON.stringify(newPos));
-    } catch {}
-    showToast("Layout reset");
-  }
-
-  function sample_deadlock() {
-    return {
-      processes: ["P1", "P2"],
-      resources: ["R1", "R2"],
-      edges: [
-        { id: "e1", from: "P1", to: "R1", type: "request" },
-        { id: "e2", from: "R1", to: "P2", type: "allocation" },
-        { id: "e3", from: "P2", to: "R2", type: "request" },
-        { id: "e4", from: "R2", to: "P1", type: "allocation" }
-      ]
-    };
-  }
-
-  function sample_safe_simple() {
-    return {
-      processes: ["P1", "P2"],
-      resources: ["R1", "R2"],
-      edges: [
-        { id: "e1", from: "R1", to: "P1", type: "allocation" },
-        { id: "e2", from: "P2", to: "R2", type: "allocation" }
-      ]
-    };
-  }
-
-  function sample_complex() {
-    return {
-      processes: ["P1", "P2", "P3"],
-      resources: ["R1", "R2", "R3"],
-      edges: [
-        { id: "e1", from: "P1", to: "R1", type: "request" },
-        { id: "e2", from: "R1", to: "P2", type: "allocation" },
-        { id: "e3", from: "P2", to: "R2", type: "request" },
-        { id: "e4", from: "R2", to: "P3", type: "allocation" },
-        { id: "e5", from: "P3", to: "R3", type: "request" },
-        { id: "e6", from: "R3", to: "P1", type: "allocation" }
-      ]
-    };
-  }
-
-  function loadSampleGraph(sampleFn) {
-    const g = sampleFn();
-
-    let counter = 1;
-    g.edges = g.edges.map(e => ({
-      ...e,
-      id: e.id || `e-s${counter++}`
-    }));
-
-    setGraph(g);
-
-    const pos = computeDefaultPositions(g);
-    setPositions(pos);
-
-    try {
-      localStorage.setItem("rag_positions", JSON.stringify(pos));
-    } catch {}
-
-    showToast("Loaded sample graph");
-  }
-
   /* ------------------ RENDER ------------------ */
-
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      <div
-        style={{
-          padding: "20px 30px",
-          background: "var(--topbar-bg)",
-          borderBottom: "1px solid #222"
-        }}
-      >
+
+      <div style={{
+        padding: "20px 30px",
+        background: "var(--topbar-bg)",
+        borderBottom: "1px solid #222"
+      }}>
         <h1>RAG Simulator</h1>
 
         <ControlsPanel
@@ -283,9 +266,9 @@ export default function Simulator() {
           onResetLayout={resetLayout}
           onResetGraph={resetGraph}
           analyzeGraph={analyzeGraph}
-          onLoadSampleDeadlock={() => loadSampleGraph(sample_deadlock)}
-          onLoadSampleSafe={() => loadSampleGraph(sample_safe_simple)}
-          onLoadSampleComplex={() => loadSampleGraph(sample_complex)}
+          onLoadDeadlock={() => loadSampleGraph(sample_deadlock)}
+          onLoadSafe={() => loadSampleGraph(sample_safe_simple)}
+          onLoadComplex={() => loadSampleGraph(sample_complex)}
         />
       </div>
 
@@ -306,10 +289,7 @@ export default function Simulator() {
           {graph.edges.map(e => (
             <li key={e.id}>
               {e.id}: {e.from} → {e.to} ({e.type})
-              <button
-                onClick={() => removeEdge(e.id)}
-                style={{ marginLeft: 8 }}
-              >
+              <button onClick={() => removeEdge(e.id)} style={{ marginLeft: 8 }}>
                 Delete
               </button>
             </li>
@@ -322,21 +302,13 @@ export default function Simulator() {
       <VisualizerModal
         open={visualizationOpen}
         onClose={() => setVisualizationOpen(false)}
-        graph={{
-          processes: graph.processes,
-          resources: graph.resources,
-          request_edges: graph.edges
-            .filter(e => e.type === "request")
-            .map(e => [e.from, e.to]),
-          allocation_edges: graph.edges
-            .filter(e => e.type === "allocation")
-            .map(e => [e.from, e.to])
-        }}
+        graph={graph}
         positions={positions}
         cycle={detectionResult.cycles}
         backendVisualizationBase64={visualization}
         onRegenerate={analyzeGraph}
       />
+
     </div>
   );
 }

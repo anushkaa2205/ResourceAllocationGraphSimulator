@@ -1,27 +1,25 @@
 # -------------------------------------------------------
-# CLEAN + FINAL BACKEND FOR DOCKER & FRONTEND
+# FINAL BACKEND WITH PNG + PDF EXPORT
 # -------------------------------------------------------
 
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import io
-import base64
+import io, base64
 import networkx as nx
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# PDF libs
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.utils import ImageReader
-from io import BytesIO
 from PIL import Image
+from io import BytesIO
 
 app = Flask(__name__)
 CORS(app)
 
-# Colors for drawing
+# ---------- COLORS ----------
 BG = "#0f1722"
 PROCESS_COLOR = "#3b82f6"
 RESOURCE_COLOR = "#10b981"
@@ -31,7 +29,6 @@ ALLOC_EDGE = "#34d399"
 NODE_EDGE_COLOR = "#0b1220"
 NODE_TEXT_COLOR = "#041726"
 NODE_SIZE = 1400
-
 
 # -------------------------------------------------------
 # BUILD GRAPH
@@ -53,21 +50,14 @@ def build_graph(payload):
 
     return G
 
-
 # -------------------------------------------------------
-# FIND DEADLOCK CYCLE
+# DETECT CYCLE
 # -------------------------------------------------------
 def detect_cycle(G):
-    try:
-        cycles = list(nx.simple_cycles(G))
-    except:
-        return []
-
+    cycles = list(nx.simple_cycles(G))
     if not cycles:
         return []
-
     return sorted(cycles, key=lambda c: len(c))[0]
-
 
 # -------------------------------------------------------
 # DRAW PNG
@@ -87,14 +77,11 @@ def draw_png(G, dead_nodes):
     for u, v, d in G.edges(data=True):
         x1, y1 = pos[u]
         x2, y2 = pos[v]
-        is_dead = (u in dead_nodes) and (v in dead_nodes)
-
+        is_dead = u in dead_nodes and v in dead_nodes
         color = DEADLOCK_COLOR if is_dead else (
             REQUEST_EDGE if d["etype"] == "request" else ALLOC_EDGE
         )
-        lw = 3 if is_dead else 1.6
-
-        ax.plot([x1, x2], [y1, y2], color=color, linewidth=lw)
+        ax.plot([x1, x2], [y1, y2], color=color, linewidth=3 if is_dead else 1.6)
 
     # nodes
     for n, data in G.nodes(data=True):
@@ -105,33 +92,26 @@ def draw_png(G, dead_nodes):
             PROCESS_COLOR if data["ntype"] == "process" else RESOURCE_COLOR
         )
 
-        ax.scatter(
-            x, y, s=NODE_SIZE, c=color, marker=marker,
-            edgecolors=NODE_EDGE_COLOR, linewidths=1
-        )
-        ax.text(x, y, n, color=NODE_TEXT_COLOR, ha="center", va="center", fontsize=10)
-
-    title = "DEADLOCK DETECTED" if dead_nodes else "SAFE STATE — NO DEADLOCK"
-    tcolor = DEADLOCK_COLOR if dead_nodes else "#34d399"
-    ax.set_title(title, color=tcolor, fontsize=16)
+        ax.scatter(x, y, s=NODE_SIZE, c=color, marker=marker,
+                   edgecolors=NODE_EDGE_COLOR, linewidths=1)
+        ax.text(x, y, n, color=NODE_TEXT_COLOR,
+                ha="center", va="center", fontsize=11)
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, facecolor=BG, bbox_inches="tight")
     buf.seek(0)
     return buf.read()
 
-
 # -------------------------------------------------------
-# ANALYZE ENDPOINT
+# ANALYZE (JSON RETURN)
 # -------------------------------------------------------
 @app.route("/analyze", methods=["POST"])
 def analyze():
     payload = request.get_json(force=True)
     G = build_graph(payload)
     cycle = detect_cycle(G)
-    dead_nodes = cycle
 
-    png = draw_png(G, dead_nodes)
+    png = draw_png(G, cycle)
     b64 = base64.b64encode(png).decode("utf-8")
 
     return jsonify({
@@ -140,69 +120,79 @@ def analyze():
         "visualization": b64
     })
 
-
 # -------------------------------------------------------
-# EXPORT PDF REPORT
+# EXPORT PDF + PNG
 # -------------------------------------------------------
 @app.route("/export", methods=["POST"])
-def export_pdf():
+def export_file():
     payload = request.get_json(force=True)
-    img_b64 = payload.get("backendVisualizationBase64")
+    fmt = payload.get("format", "png")
 
+    G = build_graph(payload)
+    cycle = detect_cycle(G)
+
+    # ===== PNG EXPORT =====
+    if fmt == "png":
+        png_bytes = draw_png(G, cycle)
+        return send_file(
+            io.BytesIO(png_bytes),
+            mimetype="image/png",
+            as_attachment=True,
+            download_name="visualization.png"
+        )
+
+    # ===== PDF EXPORT =====
     buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
     width, height = landscape(A4)
 
-    c.setFont("Helvetica-Bold", 20)
-    c.drawCentredString(width/2, height - 50, "Resource Allocation Graph — System Report")
+    pdf.setFont("Helvetica-Bold", 20)
+    pdf.drawCentredString(width/2, height - 40, "RAG — System Report")
 
-    c.setFont("Helvetica", 11)
-    y = height - 90
+    pdf.setFont("Helvetica", 11)
+    y = height - 80
 
     lines = [
         f"Processes: {', '.join(payload.get('processes', []))}",
-        f"Resources: {', '.join(payload.get('resources', []))}"
+        f"Resources: {', '.join(payload.get('resources', []))}",
+        f"Deadlock: {bool(cycle)}",
+        f"Cycle: {cycle if cycle else 'None'}"
     ]
 
-    analysis = payload.get("analysis", {})
-    if "deadlock" in analysis:
-        lines.append(f"Deadlock: {analysis['deadlock']}")
-    if "explanation" in analysis:
-        lines.append(f"Explanation: {analysis['explanation']}")
-    if "fixes" in analysis:
-        lines.append("Fix Suggestions:")
-        for f in analysis["fixes"]:
-            lines.append(" - " + f)
-
     for line in lines:
-        c.drawString(40, y, line)
+        pdf.drawString(40, y, line)
         y -= 16
 
-    if img_b64:
-        try:
-            raw = base64.b64decode(img_b64)
-            im = Image.open(BytesIO(raw))
+    # embed PNG inside PDF
+    png = draw_png(G, cycle)
+    im = Image.open(BytesIO(png))
+    max_w, max_h = width * 0.5, height * 0.6
+    w, h = im.size
+    scale = min(max_w / w, max_h / h)
+    iw, ih = int(w * scale), int(h * scale)
 
-            max_w = width * 0.5
-            max_h = height * 0.6
-            w, h = im.size
-            scale = min(max_w / w, max_h / h)
-            iw, ih = int(w*scale), int(h*scale)
+    pdf.drawImage(
+        ImageReader(im.resize((iw, ih))),
+        width - iw - 40,
+        height - ih - 80,
+        width=iw, height=ih
+    )
 
-            img_r = ImageReader(im.resize((iw, ih)))
-            c.drawImage(img_r, width - iw - 40, height - ih - 80, width=iw, height=ih)
-        except Exception as e:
-            print("Image error:", e)
-
-    c.showPage()
-    c.save()
+    pdf.showPage()
+    pdf.save()
     buffer.seek(0)
-    return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="system_report.pdf")
+
+    return send_file(
+        buffer,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="system_report.pdf"
+    )
 
 
 # -------------------------------------------------------
-# RUN (ONLY FOR DOCKER)
+# RUN
 # -------------------------------------------------------
 if __name__ == "__main__":
-    print("Starting backend on 0.0.0.0:5000")
+    print("Backend running at http://0.0.0.0:5000")
     app.run(host="0.0.0.0", port=5000)

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 export default function ControlsPanel({
   processes,
@@ -8,58 +8,74 @@ export default function ControlsPanel({
   onCreateEdge,
   onResetLayout,
   onResetGraph,
-  onLoadSampleDeadlock,
-  onLoadSampleSafe,
-  onLoadSampleComplex,
-  analyzeGraph
+  analyzeGraph,
+  onLoadDeadlock,
+  onLoadSafe,
+  onLoadComplex
 }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [type, setType] = useState("request");
+
+  const allNodes = [...processes, ...resources];
+
+  function createEdge() {
+    if (!from || !to) return alert("Select both nodes");
+    onCreateEdge({ from, to, type });
+  }
+
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 10,
-        alignItems: "center",
-        marginBottom: 10
-      }}
-    >
-      {/* BASIC CONTROLS */}
-      <button onClick={onAddProcess} className="btn-purple">
-        Add Process
-      </button>
+    <div style={{ marginBottom: "20px" }}>
+      {/* ACTION BUTTONS */}
+      <div style={{ marginBottom: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        <button onClick={onAddProcess}>Add Process</button>
+        <button onClick={onAddResource}>Add Resource</button>
+        <button onClick={onResetLayout}>Reset Layout</button>
+        <button onClick={onResetGraph}>Reset Graph</button>
+        <button onClick={analyzeGraph}>Analyze Graph</button>
 
-      <button onClick={onAddResource} className="btn-purple">
-        Add Resource
-      </button>
+        {/* SAMPLE BUTTONS */}
+        <button onClick={onLoadDeadlock}>Load Deadlock Example</button>
+        <button onClick={onLoadSafe}>Load Safe Example</button>
+        <button onClick={onLoadComplex}>Load Complex Example</button>
+      </div>
 
-      <button onClick={onCreateEdge} className="btn-blue">
-        Create Edge
-      </button>
+      {/* EDGE CREATION SECTION */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          marginTop: "10px",
+          padding: "10px",
+          background: "rgba(255,255,255,0.06)",
+          borderRadius: "8px"
+        }}
+      >
+        {/* FROM */}
+        <select value={from} onChange={(e) => setFrom(e.target.value)}>
+          <option value="">From…</option>
+          {allNodes.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
 
-      <button onClick={onResetLayout} className="btn-gray">
-        Reset Layout
-      </button>
+        {/* TO */}
+        <select value={to} onChange={(e) => setTo(e.target.value)}>
+          <option value="">To…</option>
+          {allNodes.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
 
-      <button onClick={onResetGraph} className="btn-red">
-        Reset Graph
-      </button>
+        {/* TYPE */}
+        <select value={type} onChange={(e) => setType(e.target.value)}>
+          <option value="request">Request (P → R)</option>
+          <option value="allocation">Allocation (R → P)</option>
+        </select>
 
-      <button onClick={analyzeGraph} className="btn-green">
-        Analyze Graph
-      </button>
-
-      {/* SAMPLE GRAPH LOADERS */}
-      <button onClick={onLoadSampleDeadlock} className="btn-orange">
-        Load Deadlock Example
-      </button>
-
-      <button onClick={onLoadSampleSafe} className="btn-orange">
-        Load Safe Example
-      </button>
-
-      <button onClick={onLoadSampleComplex} className="btn-orange">
-        Load Complex Example
-      </button>
+        <button onClick={createEdge}>Create Edge</button>
+      </div>
     </div>
   );
 }
