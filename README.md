@@ -1,16 +1,72 @@
-# React + Vite
+# Resource Allocation Graph (RAG) Simulator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An interactive **Resource Allocation Graph Simulator** built using **React + Vite**.  
+It visualizes how processes request and hold resources, and automatically detects **deadlocks** by identifying cycles in the graph.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Features
 
-## React Compiler
+### ✔️ Create Processes & Resources
+- Dynamically add processes (P1, P2, …) and resources (R1, R2, …).  
+- Handled inside the main application logic. (App.jsx)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### ✔️ Build Request & Allocation Edges
+- **Request Edge (P → R)**: A process requests a resource.  
+- **Allocation Edge (R → P)**: A resource is assigned to a process.  
+- Fully implemented through dedicated UI components.
 
-## Expanding the ESLint configuration
+### ✔️ Deadlock Detection
+- Real-time cycle detection using a custom DFS-based algorithm.  
+- Detects non-trivial cycles involving two or more processes.  
+- Highlights all nodes and edges participating in deadlock formation.  
+- Implemented in `rag.js`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### ✔️ Drag-and-Drop Graph Layout
+- Move processes and resources freely on the canvas.  
+- Edges update dynamically as nodes move.
+
+### ✔️ Smart & Grid Auto Layout
+- Buttons allow reorganizing the graph instantly.  
+- Smart layout centers nodes cleanly based on count.  
+- Grid layout distributes them uniformly.
+
+### ✔️ Neon Synthwave Visual Theme
+- Customized global CSS for a futuristic UI.  
+- Distinct visual styling for processes, resources, edges, alerts, and highlights.
+
+---
+
+## 📚 Deadlock Detection Logic
+
+Deadlocks occur when:
+- A set of processes are **waiting on each other** in a circular chain.
+- The cycle includes **at least two distinct processes**.
+
+The simulator:
+1. Builds a directed graph of all edges.  
+2. Runs DFS to detect back-edges and generate closed cycles.  
+3. Canonically normalizes cycles to prevent duplicates.  
+4. Highlights each participating node and edge on the canvas.  
+
+Algorithm is implemented in:
+
+- `src/utils/rag.js` — full cycle detection with edge tracking  
+- `src/components/DeadlockAlert.jsx` — UI display for results
+
+---
+
+## 🏗 Tech Stack
+- **React 19**
+- **Vite**
+- **Modern JSX Components**
+- **Custom SVG Rendering**
+- **Neon Synthwave Theming**
+
+---
+
+## 🔧 Installation & Running
+
+```bash
+npm install
+npm run dev
