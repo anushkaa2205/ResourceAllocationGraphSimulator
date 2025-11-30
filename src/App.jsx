@@ -4,6 +4,8 @@ import GraphCanvas from "./components/GraphCanvas";
 import DeadlockAlert from "./components/DeadlockAlert";
 import { createEmptyGraph, detectDeadlockDetailed } from "./utils/rag";
 import { sendGraphToBackend } from "./utils/rag.js";
+import VisualizerModal from "./components/VisualizerModal";
+import { sendGraphToBackend } from "./utils/sendGraphToBackend"; // ensure this helper exists
 
 
 // MODULE 2
@@ -36,6 +38,8 @@ export default function App() {
     safety: null,
     metrics: null
   });
+// for backend visualization
+const [visualization, setVisualization] = useState(null);
 
   useEffect(() => {
     try {
@@ -116,35 +120,41 @@ function showToast(text, ms = 1600) {
    /* -------------------------- ANALYZE GRAPH (BACKEND CONNECT) -------------------------- */
 
    const analyzeGraph = async () => {
-    console.log("Analyze clicked!");
-  
-    const graphToSend = {
-      processes: graph.processes,     // correct
-      resources: graph.resources,     // correct
-      request_edges: graph.edges
-        .filter(e => e.type === "request")
-        .map(e => [e.from, e.to]),
-  
-      allocation_edges: graph.edges
-        .filter(e => e.type === "allocation")
-        .map(e => [e.from, e.to])
-    };
-  
-    console.log("Sending to backend:", graphToSend);
-  
-    const result = await sendGraphToBackend(graphToSend);
-  
-    console.log("Result from backend:", result);
-  
-    if (result) {
-      if (result.deadlock) {
-        showToast("DEADLOCK: " + result.cycle.join(" → "));
-      } else {
-        showToast("Safe State — No Deadlock");
-      }
-    }
+  console.log("Analyze clicked!");
+
+  const graphToSend = {
+    processes: graph.processes,
+    resources: graph.resources,
+
+    request_edges: graph.edges
+      .filter(e => e.type === "request")
+      .map(e => [e.from, e.to]),
+
+    allocation_edges: graph.edges
+      .filter(e => e.type === "allocation")
+      .map(e => [e.from, e.to])
   };
-  
+
+  console.log("Sending to backend:", graphToSend);
+
+  const result = await sendGraphToBackend(graphToSend);
+
+  console.log("Result from backend:", result);
+
+  if (result) {
+    if (result.deadlock) {
+      showToast("DEADLOCK: " + result.cycle.join(" → "));
+    } else {
+      showToast("Safe State — No Deadlock");
+    }
+
+    // ⭐ NEW: show visualization modal
+    if (result.visualization) {
+      setVisualization(result.visualization);
+    }
+  }
+};
+
 
   /* ----------------------------- RESET ----------------------------- */
 
@@ -312,6 +322,24 @@ function showToast(text, ms = 1600) {
       {toast ? (
         <div className="toast-notice">{toast}</div>
       ) : null}
+      {visualization && (
+  <div className="visual-modal" onClick={() => setVisualization(null)}>
+    <div className="visual-content" onClick={(e) => e.stopPropagation()}>
+      <img
+        alt="Visualization"
+        src={`data:image/png;base64,${visualization}`}
+        style={{ width: "100%", borderRadius: "10px" }}
+      />
+      <button
+        style={{ marginTop: "10px", float: "right" }}
+        onClick={() => setVisualization(null)}
+      >
+        Close
+      </button>
+    </div>
+  </div>
+)}
+
 
     </div>
   );
