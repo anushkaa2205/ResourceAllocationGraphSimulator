@@ -285,7 +285,7 @@ function showToast(text, ms = 1600) {
       onPositionChange={updateNodePosition}
     />
   </div>
- showToast
+ 
   {/* ⭐ Deadlock alert right below the graph */}
   <div style={{ padding:"5px",marginTop: "0px" }}>
     <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />

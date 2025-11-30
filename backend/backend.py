@@ -2,9 +2,30 @@ from flask import Flask, request, jsonify
 import json
 import networkx as nx
 from flask_cors import CORS
+import subprocess
+import sys
+import os
+
 
 app = Flask(__name__)
 CORS(app) 
+
+@app.route("/open-visualizer", methods=["GET"])
+def open_visualizer():
+    try:
+        # Path to Module 3 script
+        script_path = os.path.join(os.path.dirname(__file__), "module3_visualizer.py")
+
+        # Launch Module-3 visualizer in a new process
+        subprocess.Popen([sys.executable, script_path], 
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+
+        return {"status": "Visualizer launched"}, 200
+    
+    except Exception as e:
+        return {"error": str(e)}, 500
+
 
 # -----------------------------------------------------------
 # DEADLOCK DETECTION (Module 2 core algorithm)
@@ -59,6 +80,14 @@ def analyze_graph():
     }
     with open("analysis_output.json", "w") as f:
         json.dump(analysis, f, indent=4)
+        # Auto-launch Module 3 Visualizer
+    try:
+        script_path = os.path.join(os.path.dirname(__file__), "module3_visualizer.py")
+        subprocess.Popen([sys.executable, script_path],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print("Visualizer launch error:", e)
 
     # Send response to frontend
     return jsonify({
