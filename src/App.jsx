@@ -2,13 +2,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import ControlsPanel from "./components/ControlsPanel";
 import GraphCanvas from "./components/GraphCanvas";
 import DeadlockAlert from "./components/DeadlockAlert";
-import { createEmptyGraph, detectDeadlockDetailed } from "./utils/rag";
-import { sendGraphToBackend } from "./utils/rag.js";
 import VisualizerModal from "./components/VisualizerModal";
-import { sendGraphToBackend } from "./utils/sendGraphToBackend"; // ensure this helper exists
 
+import { createEmptyGraph, detectDeadlockDetailed } from "./utils/rag";
+import { sendGraphToBackend } from "./utils/sendGraphToBackend";
 
-// MODULE 2
 import { explainDeadlock } from "./analysis/explain";
 import { getFixSuggestions } from "./analysis/advisor";
 import { predictDeadlock } from "./analysis/predict";
@@ -19,7 +17,6 @@ let EDGE_COUNTER = 1;
 
 export default function App() {
 
-  /* --------------------- APP STATE --------------------- */
   const [graph, setGraph] = useState(() => createEmptyGraph());
   const [positions, setPositions] = useState(() => {
     try {
@@ -30,6 +27,8 @@ export default function App() {
   });
 
   const [toast, setToast] = useState(null);
+  const [visualization, setVisualization] = useState(null);
+  const [visualizationOpen, setVisualizationOpen] = useState(false);
 
   const [analysis, setAnalysis] = useState({
     explanation: null,
@@ -38,23 +37,15 @@ export default function App() {
     safety: null,
     metrics: null
   });
-// for backend visualization
-const [visualization, setVisualization] = useState(null);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("rag_positions", JSON.stringify(positions));
-    } catch {}
+    localStorage.setItem("rag_positions", JSON.stringify(positions));
   }, [positions]);
 
-  /* -------------------------- TOAST FUNCTION (ADD THIS) -------------------------- */
-function showToast(text, ms = 1600) {
-  setToast(text);
-  setTimeout(() => setToast(null), ms);
-}
-
-
-  /* ------------------ ADD PROCESS & RESOURCE ------------------ */
+  function showToast(text, ms = 1600) {
+    setToast(text);
+    setTimeout(() => setToast(null), ms);
+  }
 
   const addProcess = () => {
     const id = "P" + (graph.processes.length + 1);
@@ -82,31 +73,22 @@ function showToast(text, ms = 1600) {
     showToast("Added " + id);
   };
 
-
-  /* --------------------------- POSITIONS --------------------------- */
-
-  function defaultPosFor(kind, index) {
-    return { x: 140 + index * 150, y: kind === "process" ? 150 : 350 };
+  function defaultPosFor(kind, i) {
+    return { x: 140 + i * 150, y: kind === "process" ? 150 : 350 };
   }
-
-
-  /* -------------------------- EDGE HANDLING -------------------------- */
 
   function createEdge({ from, to, type }) {
     if (!from || !to || !type) return;
-
     const exists = graph.edges.some(e => e.from === from && e.to === to && e.type === type);
-    if (exists) return showToast("Edge already exists");
+    if (exists) return showToast("Edge exists");
 
     const id = "e" + EDGE_COUNTER++;
-    const edge = { id, from, to, type };
-
     setGraph(prev => ({
       ...prev,
-      edges: [...prev.edges, edge]
+      edges: [...prev.edges, { id, from, to, type }]
     }));
 
-    showToast(`Created edge ${id}`);
+    showToast("Created " + id);
   }
 
   function removeEdge(id) {
@@ -114,69 +96,41 @@ function showToast(text, ms = 1600) {
       ...prev,
       edges: prev.edges.filter(e => e.id !== id)
     }));
-    showToast("Edge removed");
   }
 
-   /* -------------------------- ANALYZE GRAPH (BACKEND CONNECT) -------------------------- */
+  const analyzeGraph = async () => {
+    const payload = {
+      processes: graph.processes,
+      resources: graph.resources,
+      request_edges: graph.edges.filter(e => e.type === "request").map(e => [e.from, e.to]),
+      allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => [e.from, e.to])
+    };
 
-   const analyzeGraph = async () => {
-  console.log("Analyze clicked!");
+    const result = await sendGraphToBackend(payload);
 
-  const graphToSend = {
-    processes: graph.processes,
-    resources: graph.resources,
+    if (result) {
+      if (result.deadlock) {
+        showToast("DEADLOCK: " + result.cycle.join(" → "));
+      } else {
+        showToast("Safe — No Deadlock");
+      }
 
-    request_edges: graph.edges
-      .filter(e => e.type === "request")
-      .map(e => [e.from, e.to]),
-
-    allocation_edges: graph.edges
-      .filter(e => e.type === "allocation")
-      .map(e => [e.from, e.to])
+      if (result.visualization) {
+        setVisualization(result.visualization);
+        setVisualizationOpen(true);
+      }
+    }
   };
-
-  console.log("Sending to backend:", graphToSend);
-
-  const result = await sendGraphToBackend(graphToSend);
-
-  console.log("Result from backend:", result);
-
-  if (result) {
-    if (result.deadlock) {
-      showToast("DEADLOCK: " + result.cycle.join(" → "));
-    } else {
-      showToast("Safe State — No Deadlock");
-    }
-
-    // ⭐ NEW: show visualization modal
-    if (result.visualization) {
-      setVisualization(result.visualization);
-    }
-  }
-};
-
-
-  /* ----------------------------- RESET ----------------------------- */
 
   function resetGraph() {
     setGraph(createEmptyGraph());
     setPositions({});
     localStorage.removeItem("rag_positions");
-    showToast("Graph reset");
   }
 
-
-  /* -------------------------- DRAG UPDATE -------------------------- */
-
-  const updateNodePosition = useCallback((nodeId, x, y) => {
-    setPositions(prev => ({
-      ...prev,
-      [nodeId]: { x: Math.round(x), y: Math.round(y) }
-    }));
+  const updateNodePosition = useCallback((id, x, y) => {
+    setPositions(prev => ({ ...prev, [id]: { x, y } }));
   }, []);
-
-
-  /* ---------------------- DEADLOCK DETECTION ---------------------- */
 
   const detectionResult = detectDeadlockDetailed(graph);
 
@@ -192,25 +146,12 @@ function showToast(text, ms = 1600) {
     });
   }, [graph]);
 
-
-  /* ---------------------------- UI ----------------------------- */
-
   return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      minHeight: "100vh",
-      overflowX: "hidden",
-      overflowY: "auto"
-    }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
       {/* HEADER */}
-      <div style={{
-        padding: "20px 30px",
-        background: "var(--topbar-bg)",
-        borderBottom: "1px solid #333"
-      }}>
-        <h1 style={{ marginBottom: 15 }}>Resource Allocation Graph Simulator</h1>
+      <div style={{ padding: "20px 30px", background: "var(--topbar-bg)", borderBottom: "1px solid #222" }}>
+        <h1>Resource Allocation Graph Simulator</h1>
 
         <ControlsPanel
           processes={graph.processes}
@@ -221,125 +162,92 @@ function showToast(text, ms = 1600) {
           onResetLayout={() => {}}
           onResetGraph={resetGraph}
           analyzeGraph={analyzeGraph}
-
         />
       </div>
 
       {/* MAIN BODY */}
-      <div style={{
-        display: "flex",
-        width: "100%"
-      }}>
+      <div style={{ display: "flex", flex: 1 }}>
 
         {/* SIDEBAR */}
-        <div style={{
-          width: 340,
-          padding: "10px",
-          overflow: "visible",
-          background: "var(--sidebar-bg)",
-          borderRight: "1px solid #333"
-        }}>
+        <div style={{ width: 330, background: "var(--sidebar-bg)", padding: 12, borderRight: "1px solid #222" }}>
           <h3>Current System State</h3>
-
-          <p>Processes: {graph.processes.join(", ") || "(none)"}</p>
-          <p>Resources: {graph.resources.join(", ") || "(none)"}</p>
+          <p>Processes: {graph.processes.join(", ")}</p>
+          <p>Resources: {graph.resources.join(", ")}</p>
 
           <div style={{
-            marginTop: 20,
-            padding: 16,
-            borderRadius: 12,
-            border: "1px solid #444",
-            background: "rgba(255,255,255,0.05)"
+            padding: 12,
+            background: "rgba(255,255,255,0.05)",
+            borderRadius: 10,
+            marginTop: 12
           }}>
             <h3>System Intelligence</h3>
 
-            <p><strong>Explanation:</strong><br />{analysis.explanation?.explanation}</p>
+            <p><strong>Explanation:</strong><br />
+              {analysis.explanation?.explanation}
+            </p>
 
             <p><strong>Fix Suggestions:</strong></p>
             <ul>
-              {analysis.fixes?.map((s, i) => <li key={i}>{s}</li>)}
+              {analysis.fixes?.map((x, i) => <li key={i}>{x}</li>)}
             </ul>
 
             <p><strong>Deadlock Risk:</strong><br />
-              {analysis.prediction?.riskLevel} ({analysis.prediction?.riskPercent}%)
+              {analysis.prediction?.riskLevel}
             </p>
 
-            <p><strong>Safe State?</strong><br />
+            <p><strong>Safe State?:</strong><br />
               {analysis.safety?.message}
             </p>
-
-            {analysis.safety?.safeSequence?.length > 0 && (
-              <p><strong>Safe Sequence:</strong><br />
-                {analysis.safety.safeSequence.join(" → ")}
-              </p>
-            )}
 
             <p><strong>Total Edges:</strong> {analysis.metrics?.totalEdges}</p>
           </div>
         </div>
 
-        {/* CANVAS AREA */}
-{/* CANVAS AREA */}
-<div style={{
-  flex: 1,
-  padding: "0px 0px 0px 0px",
-  overflow: "visible"
-}}>
+        {/* CANVAS */}
+        <div style={{ flex: 1, padding: 10 }}>
+          <div style={{ height: 420 }}>
+            <GraphCanvas
+              graph={graph}
+              cycles={detectionResult.cycles}
+              positions={positions}
+              onPositionChange={updateNodePosition}
+            />
+          </div>
 
-  {/* ⭐ Increased graph height */}
-  <div style={{ height: "420px"}}>
-    <GraphCanvas
-      graph={graph}
-      cycles={detectionResult.cycles}
-      positions={positions}
-      onPositionChange={updateNodePosition}
-    />
-  </div>
- 
-  {/* ⭐ Deadlock alert right below the graph */}
-  <div style={{ padding:"5px",marginTop: "0px" }}>
-    <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />
-  </div>
+          <DeadlockAlert result={detectionResult} graph={graph} onResetGraph={resetGraph} />
 
-  {/* EDGE LIST */}
-  <div style={{ padding:"5px",marginTop: 20 }}>
-    <h3>Edges</h3>
-    <ul>
-      {graph.edges.map(e => (
-        <li key={e.id}>
-          {e.id}: {e.from} → {e.to} ({e.type})
-          <button style={{ marginLeft: 10 }} onClick={() => removeEdge(e.id)}>Delete</button>
-        </li>
-      ))}
-    </ul>
-  </div>
-
-</div>
-
+          <h3>Edges</h3>
+          <ul>
+            {graph.edges.map(e => (
+              <li key={e.id}>
+                {e.id}: {e.from} → {e.to} ({e.type})
+                <button onClick={() => removeEdge(e.id)} style={{ marginLeft: 8 }}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
 
       {/* TOAST */}
-      {toast ? (
+      {toast && (
         <div className="toast-notice">{toast}</div>
-      ) : null}
-      {visualization && (
-  <div className="visual-modal" onClick={() => setVisualization(null)}>
-    <div className="visual-content" onClick={(e) => e.stopPropagation()}>
-      <img
-        alt="Visualization"
-        src={`data:image/png;base64,${visualization}`}
-        style={{ width: "100%", borderRadius: "10px" }}
-      />
-      <button
-        style={{ marginTop: "10px", float: "right" }}
-        onClick={() => setVisualization(null)}
-      >
-        Close
-      </button>
-    </div>
-  </div>
-)}
+      )}
 
+      {/* VISUALIZER MODAL */}
+      <VisualizerModal
+        open={visualizationOpen}
+        onClose={() => setVisualizationOpen(false)}
+        graph={{
+          processes: graph.processes,
+          resources: graph.resources,
+          request_edges: graph.edges.filter(e => e.type === "request").map(e => [e.from, e.to]),
+          allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => [e.from, e.to])
+        }}
+        positions={positions}
+        cycle={detectionResult.cycles}
+        backendVisualizationBase64={visualization}
+        onRegenerate={analyzeGraph}
+      />
 
     </div>
   );
