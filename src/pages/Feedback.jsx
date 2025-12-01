@@ -7,7 +7,7 @@ export default function Feedback() {
       <div style={card}>
         <h2 style={{ margin: 0, color: "#eef7ff" }}>Feedback & Contact</h2>
         <p style={{ marginTop: 8, color: "#b8dff0" }}>
-          Report bugs, request features or share classroom use — open an issue on the repo or email feedback@yourproject.example
+          Report bugs, request features or share classroom use — open an issue on the repo or email harshitamugdha@gmail.com
         </p>
 
         <form onSubmit={(e) => { e.preventDefault(); alert("Thanks — placeholder submission. Replace with your API."); }} style={{ marginTop: 12, display: "grid", gap: 10 }}>

@@ -7,15 +7,14 @@ import GraphCanvas from "../components/GraphCanvas";
 import DeadlockAlert from "../components/DeadlockAlert";
 import VisualizerModal from "../components/VisualizerModal";
 
-import { createEmptyGraph, detectDeadlockDetailed } from "../utils/rag";
-import { sendGraphToBackend } from "../utils/sendGraphToBackend"; // path based on your project
+import { createEmptyGraph, detectDeadlockDetailed, detectDeadlockInstances } from "../utils/rag";
+import { sendGraphToBackend } from "../utils/sendGraphToBackend";
 
 import { explainDeadlock } from "../analysis/explain";
 import { getFixSuggestions } from "../analysis/advisor";
 import { predictDeadlock } from "../analysis/predict";
 import { isSafeState } from "../analysis/bankers";
 import { computeMetrics } from "../analysis/metrics";
-
 
 let EDGE_COUNTER = 1;
 
@@ -50,7 +49,17 @@ export default function Simulator() {
     try { localStorage.setItem("rag_positions", JSON.stringify(positions)); } catch {}
   }, [positions]);
 
-  const detectionResult = detectDeadlockDetailed(graph);
+  // cycle-based detection (for highlighting cycles in single-instance view)
+  const cycleResult = detectDeadlockDetailed(graph);
+  // multi-instance matrix detection (returns deadlocked boolean + list)
+  const instanceResult = detectDeadlockInstances ? detectDeadlockInstances(graph) : { deadlocked: false, deadlockedProcesses: [] };
+
+  // Compose a result object for UI components (DeadlockAlert expects { deadlocked, cycles })
+  const detectionResult = {
+    deadlocked: instanceResult.deadlocked,
+    deadlockedProcesses: instanceResult.deadlockedProcesses || [],
+    cycles: cycleResult?.cycles || []
+  };
 
   useEffect(() => {
     const prediction = predictDeadlock({
@@ -66,7 +75,7 @@ export default function Simulator() {
       metrics: computeMetrics(graph)
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph]);
+  }, [graph, detectionResult?.cycles?.length, detectionResult?.deadlocked]);
 
   /* ------------------ HELPERS ------------------ */
   const showToast = (text, ms = 1500) => {
@@ -89,8 +98,8 @@ export default function Simulator() {
       pos[id] = { x: 120 + i * gap, y: 110 };
     });
 
-    g.resources.forEach((id, i) => {
-      pos[id] = { x: 120 + i * gap, y: 360 };
+    g.resources.forEach((resObj, i) => {
+      pos[resObj.id] = { x: 120 + i * gap, y: 360 };
     });
 
     return pos;
@@ -106,12 +115,12 @@ export default function Simulator() {
   function sample_deadlock() {
     return {
       processes: ["P1", "P2"],
-      resources: ["R1", "R2"],
+      resources: [{ id: "R1", instances: 1 }, { id: "R2", instances: 1 }],
       edges: [
-        { id: "e1", from: "P1", to: "R1", type: "request" },
-        { id: "e2", from: "R1", to: "P2", type: "allocation" },
-        { id: "e3", from: "P2", to: "R2", type: "request" },
-        { id: "e4", from: "R2", to: "P1", type: "allocation" }
+        { id: "e1", from: "P1", to: "R1", type: "request", amount: 1 },
+        { id: "e2", from: "R1", to: "P2", type: "allocation", amount: 1 },
+        { id: "e3", from: "P2", to: "R2", type: "request", amount: 1 },
+        { id: "e4", from: "R2", to: "P1", type: "allocation", amount: 1 }
       ]
     };
   }
@@ -119,10 +128,10 @@ export default function Simulator() {
   function sample_safe_simple() {
     return {
       processes: ["P1", "P2"],
-      resources: ["R1", "R2"],
+      resources: [{ id: "R1", instances: 1 }, { id: "R2", instances: 1 }],
       edges: [
-        { id: "e1", from: "R1", to: "P1", type: "allocation" },
-        { id: "e2", from: "R2", to: "P2", type: "allocation" }
+        { id: "e1", from: "R1", to: "P1", type: "allocation", amount: 1 },
+        { id: "e2", from: "R2", to: "P2", type: "allocation", amount: 1 }
       ]
     };
   }
@@ -130,14 +139,14 @@ export default function Simulator() {
   function sample_complex() {
     return {
       processes: ["P1", "P2", "P3"],
-      resources: ["R1", "R2", "R3"],
+      resources: [{ id: "R1", instances: 1 }, { id: "R2", instances: 1 }, { id: "R3", instances: 1 }],
       edges: [
-        { id: "e1", from: "P1", to: "R1", type: "request" },
-        { id: "e2", from: "R1", to: "P2", type: "allocation" },
-        { id: "e3", from: "P2", to: "R2", type: "request" },
-        { id: "e4", from: "R2", to: "P3", type: "allocation" },
-        { id: "e5", from: "P3", to: "R3", type: "request" },
-        { id: "e6", from: "R3", to: "P1", type: "allocation" }
+        { id: "e1", from: "P1", to: "R1", type: "request", amount: 1 },
+        { id: "e2", from: "R1", to: "P2", type: "allocation", amount: 1 },
+        { id: "e3", from: "P2", to: "R2", type: "request", amount: 1 },
+        { id: "e4", from: "R2", to: "P3", type: "allocation", amount: 1 },
+        { id: "e5", from: "P3", to: "R3", type: "request", amount: 1 },
+        { id: "e6", from: "R3", to: "P1", type: "allocation", amount: 1 }
       ]
     };
   }
@@ -168,22 +177,27 @@ export default function Simulator() {
     showToast("Added " + id);
   };
 
-  const addResource = () => {
+  // now accepts instances count
+  const addResource = (instances = 1) => {
     const id = "R" + (graph.resources.length + 1);
+    const newRes = { id, instances: Number(instances) || 1 };
     setGraph(prev => {
-      const updated = [...prev.resources, id];
+      const updated = [...prev.resources, newRes];
       setPositions(p => ({
         ...p,
         [id]: defaultPosFor("resource", updated.length - 1)
       }));
       return { ...prev, resources: updated };
     });
-    showToast("Added " + id);
+    showToast(`Added ${id} (${newRes.instances})`);
   };
 
-  const createEdge = ({ from, to, type }) => {
+  // createEdge expects { from, to, type, amount }
+  const createEdge = ({ from, to, type, amount = 1 }) => {
     if (!from || !to || !type) return;
-    const exists = graph.edges.some(e => e.from === from && e.to === to && e.type === type);
+
+    // prevent duplicate same-direction same-amount edges
+    const exists = graph.edges.some(e => e.from === from && e.to === to && e.type === type && e.amount === amount);
     if (exists) {
       showToast("Edge already exists");
       return;
@@ -192,7 +206,7 @@ export default function Simulator() {
     const id = "e" + EDGE_COUNTER++;
     setGraph(prev => ({
       ...prev,
-      edges: [...prev.edges, { id, from, to, type }]
+      edges: [...prev.edges, { id, from, to, type, amount: Number(amount) }]
     }));
     showToast("Created " + id);
   };
@@ -217,61 +231,62 @@ export default function Simulator() {
   }, []);
 
   /* ------------------ ANALYZE GRAPH ------------------ */
-  // inside Simulator.jsx (replace existing analyzeGraph)
-const analyzeGraph = async () => {
-  const payload = {
-    processes: graph.processes,
-    resources: graph.resources,
-    request_edges: graph.edges.filter(e => e.type === "request").map(e => [e.from, e.to]),
-    allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => [e.from, e.to])
-  };
+  const analyzeGraph = async () => {
+    // build payload preserving instances and amounts
+    const payload = {
+      processes: graph.processes,
+      resources: graph.resources, // array of { id, instances }
+      request_edges: graph.edges.filter(e => e.type === "request").map(e => ({ from: e.from, to: e.to, amount: e.amount })),
+      allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => ({ from: e.from, to: e.to, amount: e.amount }))
+    };
 
-  showToast("Analyzing system...");
-  let backendResult;
-  try {
-    backendResult = await sendGraphToBackend(payload);
-  } catch (err) {
-    console.error("sendGraphToBackend threw:", err);
-    showToast("Analysis failed (network). Check backend.");
-    return;
-  }
-
-  // backend helper returns { error: ... } on failure in the robust helper I suggested
-  if (!backendResult || backendResult.error) {
-    console.error("Backend error result:", backendResult);
-    showToast("Analysis failed: " + (backendResult?.error || "no response"));
-    return;
-  }
-
-  // detectionResult is computed locally (detectDeadlockDetailed)
-  const localDetection = detectDeadlockDetailed(graph);
-  // Compose analysis object (use your analysis modules)
-  const composedAnalysis = {
-    explanation: explainDeadlock(graph, localDetection.cycles),
-    fixes: getFixSuggestions(graph, localDetection.cycles),
-    prediction: predictDeadlock({ ...graph, cycles: localDetection.cycles }),
-    safety: isSafeState(graph),
-    metrics: computeMetrics(graph),
-    // add backend-provided fields:
-    backend: {
-      deadlock: backendResult.deadlock,
-      cycle: backendResult.cycle,
-      visualization: backendResult.visualization  // base64 png
+    showToast("Analyzing system...");
+    let backendResult;
+    try {
+      backendResult = await sendGraphToBackend(payload);
+    } catch (err) {
+      console.error("sendGraphToBackend threw:", err);
+      showToast("Analysis failed (network). Check backend.");
+      return;
     }
-  };
 
-  // store visualization but do not auto-open modal
-  if (backendResult.visualization) setVisualization(backendResult.visualization);
-
-  // navigate to the Analysis page with full state
-  navigate("/analysis", {
-    state: {
-      graph,
-      analysis: composedAnalysis,
-      cycle: backendResult.cycle || localDetection.cycles
+    if (!backendResult || backendResult.error) {
+      console.error("Backend error result:", backendResult);
+      showToast("Analysis failed: " + (backendResult?.error || "no response"));
+      return;
     }
-  });
-};
+
+    // local detection results
+    const localCycle = cycleResult;
+    const localInstance = instanceResult;
+
+    const composedAnalysis = {
+      explanation: explainDeadlock(graph, localCycle.cycles || []),
+      fixes: getFixSuggestions(graph, localCycle.cycles || []),
+      prediction: predictDeadlock({ ...graph, cycles: localCycle.cycles || [] }),
+      safety: isSafeState(graph),
+      metrics: computeMetrics(graph),
+      backend: {
+        deadlock: backendResult.deadlock,
+        cycle: backendResult.cycle,
+        visualization: backendResult.visualization // base64 png
+      },
+      local: {
+        cycleDetection: localCycle,
+        instanceDetection: localInstance
+      }
+    };
+
+    if (backendResult.visualization) setVisualization(backendResult.visualization);
+
+    navigate("/analysis", {
+      state: {
+        graph,
+        analysis: composedAnalysis,
+        cycle: backendResult.cycle || localCycle.cycles
+      }
+    });
+  };
 
   /* ------------------ RENDER ------------------ */
   return (
@@ -315,7 +330,7 @@ const analyzeGraph = async () => {
         <ul>
           {graph.edges.map(e => (
             <li key={e.id} style={{ marginBottom: 6 }}>
-              {e.id}: {e.from} → {e.to} ({e.type})
+              {e.id}: {e.from} → {e.to} ({e.type}) {e.amount ? `x${e.amount}` : ""}
               <button onClick={() => removeEdge(e.id)} style={{ marginLeft: 8 }}>Delete</button>
             </li>
           ))}
@@ -330,8 +345,8 @@ const analyzeGraph = async () => {
         graph={{
           processes: graph.processes,
           resources: graph.resources,
-          request_edges: graph.edges.filter(e => e.type === "request").map(e => [e.from, e.to]),
-          allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => [e.from, e.to])
+          request_edges: graph.edges.filter(e => e.type === "request").map(e => ({ from: e.from, to: e.to, amount: e.amount })),
+          allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => ({ from: e.from, to: e.to, amount: e.amount }))
         }}
         positions={positions}
         cycle={detectionResult?.cycles || []}

@@ -1,8 +1,9 @@
+// src/pages/Visualizer.jsx
 import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { sendGraphToBackend } from "../utils/sendGraphToBackend";
 
-/* ---------- helpers ---------- */
+/* ------------------ helpers ------------------ */
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -12,6 +13,7 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
+// fallback PNG export from SVG if backend visualization missing
 async function svgToPngBlob(svgEl, width = 1200, height = 800) {
   const data = new XMLSerializer().serializeToString(svgEl);
   const svgBlob = new Blob([data], { type: "image/svg+xml;charset=utf-8" });
@@ -26,8 +28,6 @@ async function svgToPngBlob(svgEl, width = 1200, height = 800) {
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d");
-
-      // background
       ctx.fillStyle = "#0f1722";
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
@@ -46,45 +46,52 @@ async function svgToPngBlob(svgEl, width = 1200, height = 800) {
   });
 }
 
-/* ---------- Visualizer page ---------- */
+/* ------------------ Visualizer Page ------------------ */
 export default function Visualizer() {
   const nav = useNavigate();
   const location = useLocation();
 
-  // Expecting state: { graph, cycle, positions, backendVisualizationBase64 }
   const incoming = location.state || {};
-const graph = incoming.graph || {};
-graph.processes ||= [];
-graph.resources ||= [];
-graph.request_edges ||= [];
-graph.allocation_edges ||= [];
-  const cycle = incoming.cycle || []; // array of node ids in cycle
+
+  /* ---------- GRAPH FORMAT FIX ---------- */
+  const graph = incoming.graph || {};
+  graph.processes ||= [];
+  graph.resources ||= []; // now array of {id, instances}
+  graph.request_edges ||= []; // now array of { from, to, amount }
+  graph.allocation_edges ||= [];
+
+  const cycle = incoming.cycle || []; // still OK
   const positions = incoming.positions || {};
 
   const [backendPreview, setBackendPreview] = useState(incoming.backendVisualizationBase64 || null);
   const [animating, setAnimating] = useState(false);
   const [busy, setBusy] = useState(false);
+
   const svgRef = useRef(null);
 
-  // Build nodes and edges list for drawing
+  /* ------------------ Build Node List ------------------ */
+
   const nodes = [
-    ...graph.processes.map((id) => ({ id, ntype: "process" })),
-    ...graph.resources.map((id) => ({ id, ntype: "resource" }))
+    ...graph.processes.map(id => ({ id, ntype: "process" })),
+    ...graph.resources.map(r => ({ id: r.id, ntype: "resource", instances: r.instances }))
   ];
+
+  /* ------------------ Build Edge List ------------------ */
 
   const edges = [
-    ...graph.request_edges.map(([u, v]) => ({ from: u, to: v, etype: "request" })),
-    ...graph.allocation_edges.map(([u, v]) => ({ from: u, to: v, etype: "alloc" }))
+    ...graph.request_edges.map(e => ({ from: e.from, to: e.to, amount: e.amount, etype: "request" })),
+    ...graph.allocation_edges.map(e => ({ from: e.from, to: e.to, amount: e.amount, etype: "allocation" }))
   ];
 
-  // compute coords (fallback grid if no positions)
+  /* ------------------ Compute Node Coordinates ------------------ */
   const coords = {};
   if (Object.keys(positions).length > 0) {
-    // normalize to canvas space
     const xs = Object.values(positions).map(p => p.x);
     const ys = Object.values(positions).map(p => p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
     const W = Math.max(300, maxX - minX || 300);
     const H = Math.max(300, maxY - minY || 300);
 
@@ -100,6 +107,7 @@ graph.allocation_edges ||= [];
     });
   }
 
+  /* ------------------ Deadlock Info ------------------ */
   const deadNodes = new Set(cycle);
   const deadlock = cycle.length > 0;
 
@@ -107,165 +115,194 @@ graph.allocation_edges ||= [];
     setBackendPreview(incoming.backendVisualizationBase64 || null);
   }, [incoming.backendVisualizationBase64]);
 
-  /* ---------- actions ---------- */
+  /* ------------------ Actions ------------------ */
+
   const handleDownloadPNG = async () => {
     setBusy(true);
     try {
       if (backendPreview) {
-        // backend gives base64 PNG
         const byteChars = atob(backendPreview);
         const byteNumbers = new Array(byteChars.length);
         for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
         const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "image/png" });
-        downloadBlob(blob, "visualization.png");
-      } else if (svgRef.current) {
+        downloadBlob(new Blob([byteArray], { type: "image/png" }), "visualization.png");
+      } else {
         const blob = await svgToPngBlob(svgRef.current, 1200, 800);
         downloadBlob(blob, "visualization.png");
       }
     } catch (err) {
-      console.error(err);
-      alert("Export failed: " + String(err));
-    } finally {
-      setBusy(false);
+      alert("PNG Export Failed");
     }
+    setBusy(false);
   };
 
   const handleDownloadPDF = async () => {
     setBusy(true);
     try {
-      // call backend export endpoint
-      const payload = {
-        ...graph,
-        format: "pdf"
-      };
-
       const res = await fetch("http://127.0.0.1:5000/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...graph, format: "pdf" })
       });
 
       if (!res.ok) throw new Error("Export failed");
-
       const blob = await res.blob();
       downloadBlob(blob, "visualization.pdf");
     } catch (err) {
-      console.error(err);
-      alert("PDF export failed: " + String(err));
-    } finally {
-      setBusy(false);
+      alert("PDF Export Failed");
     }
+    setBusy(false);
   };
 
   const handleRegenerate = async () => {
     setBusy(true);
     try {
-      const payload = {
-        processes: graph.processes,
-        resources: graph.resources,
-        request_edges: graph.request_edges,
-        allocation_edges: graph.allocation_edges
-      };
-
-      const result = await sendGraphToBackend(payload);
-      if (result && result.visualization) {
+      const result = await sendGraphToBackend(graph);
+      if (result?.visualization) {
         setBackendPreview(result.visualization);
-        alert(result.deadlock ? "Deadlock found" : "Safe state");
-      } else {
-        alert("No backend visualization returned");
+        alert(result.deadlock ? "Deadlock found" : "No Deadlock");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Regenerate failed");
-    } finally {
-      setBusy(false);
+    } catch {
+      alert("Backend regeneration failed");
     }
+    setBusy(false);
   };
+
+  /* ------------------ RENDER ------------------ */
 
   return (
     <div style={{ padding: 18, maxWidth: 1200, margin: "0 auto" }}>
       <h1 style={{ marginBottom: 10 }}>Visualizer</h1>
 
-      {!graph || (graph.processes.length === 0 && graph.resources.length === 0) ? (
+      {/* Empty graph message */}
+      {(graph.processes.length === 0 && graph.resources.length === 0) ? (
         <div style={{ padding: 24, background: "rgba(255,255,255,0.03)", borderRadius: 10 }}>
           <h3>No graph supplied</h3>
-          <p>Open the Simulator and analyze a graph to view the visualization here.</p>
-          <div style={{ marginTop: 12 }}>
-            <button onClick={() => nav("/simulator")}>Go to Simulator</button>
-          </div>
+          <button onClick={() => nav("/simulator")}>Go to Simulator</button>
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "center" }}>
-            <button onClick={() => setAnimating(a => !a)}>{animating ? "Stop Animation" : "Animate Deadlock"}</button>
-            <button onClick={handleDownloadPNG} disabled={busy}>{busy ? "..." : "Export PNG"}</button>
-            <button onClick={handleDownloadPDF} disabled={busy}>{busy ? "..." : "Export PDF"}</button>
-            <button onClick={handleRegenerate} disabled={busy}>{busy ? "..." : "Re-generate (Backend)"}</button>
+          {/* Buttons */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <button onClick={() => setAnimating(a => !a)}>
+              {animating ? "Stop Animation" : "Animate Deadlock"}
+            </button>
+            <button onClick={handleDownloadPNG} disabled={busy}>
+              {busy ? "..." : "Export PNG"}
+            </button>
+            <button onClick={handleDownloadPDF} disabled={busy}>
+              {busy ? "..." : "Export PDF"}
+            </button>
+            <button onClick={handleRegenerate} disabled={busy}>
+              {busy ? "..." : "Re-generate (Backend)"}
+            </button>
+
             <div style={{ flex: 1 }} />
-            <button onClick={() => nav("/analysis", { state: { analysis: incoming.analysis || null, graph, cycle } })}>Back to Analysis</button>
+            <button onClick={() => nav("/analysis", { state: incoming })}>Back to Analysis</button>
             <button onClick={() => nav("/simulator")}>Back to Simulator</button>
           </div>
 
           <div style={{ display: "flex", gap: 14 }}>
-            {/* SVG canvas */}
+            {/* SVG CANVAS */}
             <div style={{ flex: 1, background: "#0f1722", padding: 12, borderRadius: 10 }}>
-              <svg
-                ref={svgRef}
-                width="100%"
-                height="560"
-                viewBox="0 0 960 640"
-                style={{ display: "block", background: "#0f1722", borderRadius: 8 }}
-              >
-                {/* edges */}
+              <svg ref={svgRef} width="100%" height="560" viewBox="0 0 960 640" style={{ background: "#0f1722" }}>
+
+                {/* EDGES */}
                 {edges.map((e, i) => {
-                  const a = coords[e.from] || { x: 60, y: 60 };
-                  const b = coords[e.to] || { x: 240, y: 60 };
+                  const a = coords[e.from];
+                  const b = coords[e.to];
                   const isDead = deadNodes.has(e.from) && deadNodes.has(e.to);
 
                   return (
-                    <line
-                      key={i}
-                      x1={a.x}
-                      y1={a.y}
-                      x2={b.x}
-                      y2={b.y}
-                      stroke={isDead ? "#ff416c" : (e.etype === "request" ? "#60a5fa" : "#34d399")}
-                      strokeWidth={isDead ? 4 : 2}
-                      strokeDasharray={e.etype === "request" ? "6 6" : ""}
-                      opacity={animating && isDead ? 0.8 : 1}
-                      style={{ transition: "all 200ms ease" }}
-                    />
+                    <g key={i}>
+                      <line
+                        x1={a.x} y1={a.y}
+                        x2={b.x} y2={b.y}
+                        stroke={isDead ? "#ff416c" : (e.etype === "request" ? "#60a5fa" : "#34d399")}
+                        strokeWidth={isDead ? 4 : 2}
+                        strokeDasharray={e.etype === "request" ? "6 6" : ""}
+                      />
+
+                      {/* AMOUNT LABEL */}
+                      {e.amount > 1 && (
+                        <text
+                          x={(a.x + b.x) / 2}
+                          y={(a.y + b.y) / 2 - 6}
+                          fill="#fff"
+                          fontSize="14"
+                          textAnchor="middle"
+                        >
+                          {e.amount}
+                        </text>
+                      )}
+                    </g>
                   );
                 })}
 
-                {/* nodes */}
-                {nodes.map((n) => {
-                  const { x, y } = coords[n.id] || { x: 50, y: 50 };
+                {/* NODES */}
+                {nodes.map(n => {
+                  const { x, y } = coords[n.id];
                   const isDead = deadNodes.has(n.id);
+
                   return (
-                    <g key={n.id} transform={`translate(${x}, ${y})`} className={animating && isDead ? "pulse" : ""}>
+                    <g key={n.id} transform={`translate(${x}, ${y})`}>
+                      {/* Resource node */}
                       {n.ntype === "resource" ? (
-                        <rect x={-22} y={-22} width={44} height={44} rx={6}
-                          fill={isDead ? "#ff416c" : "#10b981"} stroke="#0b1220" strokeWidth="2" />
+                        <>
+                          <rect
+                            x={-22} y={-22} width={44} height={44} rx={6}
+                            fill={isDead ? "#ff416c" : "#10b981"}
+                            stroke="#0b1220" strokeWidth="2"
+                          />
+                          <text x={0} y={4} textAnchor="middle" fill="#041726" fontWeight={700}>
+                            {n.id}
+                          </text>
+
+                          {/* Instance Dots */}
+                          {Array.from({ length: n.instances || 1 }).map((_, i) => (
+                            <circle
+                              key={i}
+                              cx={-20 + i * 14}
+                              cy={-32}
+                              r={5}
+                              fill="#8be9fd"
+                              stroke="#fff"
+                            />
+                          ))}
+                        </>
                       ) : (
-                        <circle r={22} fill={isDead ? "#ff416c" : "#3b82f6"} stroke="#0b1220" strokeWidth="2" />
+                        /* Process node */
+                        <>
+                          <circle
+                            r={22}
+                            fill={isDead ? "#ff416c" : "#3b82f6"}
+                            stroke="#0b1220"
+                            strokeWidth="2"
+                          />
+                          <text x={0} y={4} textAnchor="middle" fill="#041726" fontWeight={700}>
+                            {n.id}
+                          </text>
+                        </>
                       )}
-                      <text x={0} y={4} textAnchor="middle" style={{ fill: "#041726", fontWeight: 700 }}>{n.id}</text>
                     </g>
                   );
                 })}
               </svg>
             </div>
 
-            {/* Right panel: backend preview + info */}
+            {/* RIGHT PANEL */}
             <div style={{ width: 360 }}>
               <div style={{ padding: 12, background: "#0b1220", borderRadius: 8 }}>
                 <h4 style={{ color: "#9aa6b2", marginTop: 0 }}>Backend Preview</h4>
+
                 {backendPreview ? (
-                  <img src={`data:image/png;base64,${backendPreview}`} alt="preview" style={{ width: "100%", borderRadius: 8 }} />
+                  <img
+                    src={`data:image/png;base64,${backendPreview}`}
+                    alt="preview"
+                    style={{ width: "100%", borderRadius: 8 }}
+                  />
                 ) : (
-                  <div style={{ color: "#9aa6b2" }}>No backend preview. Click Re-generate.</div>
+                  <div style={{ color: "#9aa6b2" }}>No backend preview yet. Click Re-generate.</div>
                 )}
 
                 <div style={{ marginTop: 12 }}>
@@ -276,11 +313,12 @@ graph.allocation_edges ||= [];
 
               <div style={{ marginTop: 12, padding: 10, background: "rgba(255,255,255,0.03)", borderRadius: 8 }}>
                 <h4 style={{ margin: "6px 0" }}>Legend</h4>
-                <p style={{ margin: 0 }}>● Process — blue circle</p>
-                <p style={{ margin: 0 }}>■ Resource — green square</p>
-                <p style={{ margin: 0 }}>— Allocation — solid</p>
-                <p style={{ margin: 0 }}>— Request — dashed</p>
-                <p style={{ marginTop: 8, color: "#ff8aa0" }}><strong>Red</strong> = Deadlock nodes/edges</p>
+                <p>● Process — blue</p>
+                <p>■ Resource — green</p>
+                <p>●● Resource Instances — cyan dots</p>
+                <p>— Allocation (solid green)</p>
+                <p>- - Request (dashed blue)</p>
+                <p style={{ marginTop: 6, color: "#ff8aa0" }}><strong>Red = Deadlock</strong></p>
               </div>
             </div>
           </div>

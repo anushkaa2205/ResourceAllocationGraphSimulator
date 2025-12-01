@@ -2,9 +2,10 @@
 """
 Final Backend — Theme-B (single accent #0000CC)
 Provides:
- - POST /analyze -> JSON { deadlock, cycle, visualization (base64 PNG) }
+ - POST /analyze -> JSON { deadlock, deadlocked_processes, cycle, visualization (base64 PNG), algorithms }
  - POST /export  -> PDF (rich Theme B) or PNG (format="png")
 """
+
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import io
@@ -20,6 +21,7 @@ from reportlab.lib.utils import ImageReader
 from io import BytesIO
 from PIL import Image
 from datetime import datetime
+import textwrap
 
 app = Flask(__name__)
 CORS(app)
@@ -35,333 +37,435 @@ NODE_EDGE_COLOR = "#0b1220"
 NODE_TEXT_COLOR = "#041726"
 NODE_SIZE = 1400
 
-# Accent color chosen by you: #0000CC
 ACCENT_HEX = "#0000CC"
-# convert hex to RGB fractions for reportlab
+
 def hex_to_rgb_frac(hexstr):
     hexstr = hexstr.lstrip("#")
-    r = int(hexstr[0:2], 16) / 255.0
-    g = int(hexstr[2:4], 16) / 255.0
-    b = int(hexstr[4:6], 16) / 255.0
-    return (r, g, b)
+    return (
+        int(hexstr[0:2], 16) / 255.0,
+        int(hexstr[2:4], 16) / 255.0,
+        int(hexstr[4:6], 16) / 255.0
+    )
 
 ACCENT_RGB = hex_to_rgb_frac(ACCENT_HEX)
 
 # -------------------------------------------------------
-# BUILD GRAPH (from payload)
+# NORMALIZATION (Accept new + old formats)
 # -------------------------------------------------------
-def build_graph(payload):
-    G = nx.DiGraph()
-    for p in payload.get("processes", []):
-        G.add_node(p, ntype="process")
-    for r in payload.get("resources", []):
-        G.add_node(r, ntype="resource")
-    for u, v in payload.get("request_edges", []):
-        G.add_edge(u, v, etype="request")
-    for u, v in payload.get("allocation_edges", []):
-        G.add_edge(u, v, etype="alloc")
-    return G
+def normalize_payload(payload):
+    out = {}
+    out["processes"] = payload.get("processes", []) or []
+
+    # Resources normalization
+    resources_raw = payload.get("resources", []) or []
+    resources_norm = []
+
+    if resources_raw and isinstance(resources_raw[0], dict):
+        # Already objects
+        for r in resources_raw:
+            rid = r.get("id") or str(r)
+            inst = int(r.get("instances", 1))
+            resources_norm.append({"id": rid, "instances": inst})
+    else:
+        # Strings → treat as single instance
+        for r in resources_raw:
+            resources_norm.append({"id": str(r), "instances": 1})
+
+    out["resources"] = resources_norm
+
+    # Edges normalization
+    def parse_edges(raw_list):
+        result = []
+        for item in raw_list or []:
+            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                result.append({"from": item[0], "to": item[1], "amount": 1})
+            elif isinstance(item, dict):
+                u = item.get("from") or item.get("u") or item.get("src")
+                v = item.get("to") or item.get("v") or item.get("dst")
+                amt = int(item.get("amount", 1))
+                result.append({"from": u, "to": v, "amount": amt})
+        return result
+
+    out["request_edges"] = parse_edges(payload.get("request_edges", []))
+    out["allocation_edges"] = parse_edges(payload.get("allocation_edges", []))
+
+    return out
+
 
 # -------------------------------------------------------
-# CYCLE DETECTION
+# BUILD GRAPH for visualization
+# -------------------------------------------------------
+def build_graph(norm):
+    G = nx.DiGraph()
+
+    for p in norm["processes"]:
+        G.add_node(p, ntype="process")
+
+    for r in norm["resources"]:
+        G.add_node(r["id"], ntype="resource", instances=r["instances"])
+
+    for e in norm["request_edges"]:
+        G.add_edge(e["from"], e["to"], etype="request", amount=e["amount"])
+
+    for e in norm["allocation_edges"]:
+        G.add_edge(e["from"], e["to"], etype="alloc", amount=e["amount"])
+
+    return G
+
+
+# -------------------------------------------------------
+# CYCLE DETECTION (graph-cycle)
 # -------------------------------------------------------
 def detect_cycle(G):
     try:
         cycles = list(nx.simple_cycles(G))
     except Exception:
         return []
+
     if not cycles:
         return []
-    # choose shortest cycle (deterministic by sorting)
-    return sorted(cycles, key=lambda c: len(c))[0]
+
+    cycles_sorted = sorted(cycles, key=lambda c: (len(c), ",".join(c)))
+    return cycles_sorted[0]
+
 
 # -------------------------------------------------------
-# DRAW PNG (returns bytes)
+# MULTI-INSTANCE DEADLOCK DETECTOR (Banker style)
 # -------------------------------------------------------
-def draw_png_bytes(G, dead_nodes):
-    try:
-        pos = nx.spring_layout(G, seed=42)
-    except Exception:
-        pos = {n: (i, i) for i, n in enumerate(G.nodes())}
+def detect_deadlock_multi_instance(norm):
+    processes = norm["processes"]
+    resources = norm["resources"]
+    reqs = norm["request_edges"]
+    allocs = norm["allocation_edges"]
+
+    n = len(processes)
+    m = len(resources)
+    if n == 0 or m == 0:
+        return {"deadlocked": False, "deadlocked_processes": []}
+
+    proc_idx = {p: i for i, p in enumerate(processes)}
+    res_idx = {r["id"]: i for i, r in enumerate(resources)}
+
+    Available = [r["instances"] for r in resources]
+
+    Allocation = [[0]*m for _ in range(n)]
+    Request = [[0]*m for _ in range(n)]
+
+    # Fill allocation
+    for e in allocs:
+        u, v = e["from"], e["to"]
+        amt = e["amount"]
+        if u in res_idx and v in proc_idx:     # R -> P
+            Allocation[proc_idx[v]][res_idx[u]] += amt
+            Available[res_idx[u]] -= amt
+        elif v in res_idx and u in proc_idx:   # reversed
+            Allocation[proc_idx[u]][res_idx[v]] += amt
+            Available[res_idx[v]] -= amt
+
+    Available = [max(0, a) for a in Available]
+
+    # Fill requests
+    for e in reqs:
+        u, v = e["from"], e["to"]
+        amt = e["amount"]
+        if u in proc_idx and v in res_idx:
+            Request[proc_idx[u]][res_idx[v]] += amt
+        elif v in proc_idx and u in res_idx:
+            Request[proc_idx[v]][res_idx[u]] += amt
+
+    Work = Available[:]
+    Finish = [False]*n
+
+    changed = True
+    while changed:
+        changed = False
+        for i in range(n):
+            if Finish[i]:
+                continue
+            if all(Request[i][j] <= Work[j] for j in range(m)):
+                for j in range(m):
+                    Work[j] += Allocation[i][j]
+                Finish[i] = True
+                changed = True
+
+    deadlocked = [processes[i] for i in range(n) if not Finish[i]]
+
+    return {"deadlocked": bool(deadlocked), "deadlocked_processes": deadlocked}
+
+
+# -------------------------------------------------------
+# DRAW PNG (amounts + instance dots)
+# -------------------------------------------------------
+def draw_png_bytes(G, cycle_nodes):
+    pos = nx.spring_layout(G, seed=42)
 
     fig = plt.Figure(figsize=(9, 6), dpi=120, facecolor=BG)
     ax = fig.add_subplot(111)
     ax.set_facecolor(BG)
     ax.set_axis_off()
 
-    # draw edges
+    # edges
     for u, v, d in G.edges(data=True):
-        x1, y1 = pos.get(u, (0, 0))
-        x2, y2 = pos.get(v, (0, 0))
-        is_dead = u in dead_nodes and v in dead_nodes
-        color = DEADLOCK_COLOR if is_dead else (REQUEST_EDGE if d.get("etype") == "request" else ALLOC_EDGE)
-        lw = 3.0 if is_dead else 1.6
-        ax.plot([x1, x2], [y1, y2], color=color, linewidth=lw, alpha=0.95, zorder=2)
+        x1, y1 = pos[u]
+        x2, y2 = pos[v]
+        is_dead = u in cycle_nodes and v in cycle_nodes
 
-    # draw nodes
+        color = DEADLOCK_COLOR if is_dead else (
+            REQUEST_EDGE if d["etype"] == "request" else ALLOC_EDGE
+        )
+
+        lw = 3 if is_dead else 1.6
+        ax.plot([x1, x2], [y1, y2], color=color, linewidth=lw)
+
+        # amount
+        if d.get("amount", 1) > 1:
+            mx = (x1 + x2)/2
+            my = (y1 + y2)/2
+            ax.text(mx, my, str(d["amount"]),
+                    color="white", fontsize=9,
+                    ha="center", va="center")
+
+    # nodes
     for n, data in G.nodes(data=True):
-        x, y = pos.get(n, (0, 0))
-        is_dead = n in dead_nodes
-        marker = "o" if data.get("ntype") == "process" else "s"
-        color = DEADLOCK_COLOR if is_dead else (PROCESS_COLOR if data.get("ntype") == "process" else RESOURCE_COLOR)
-        ax.scatter([x], [y], s=NODE_SIZE, c=color, marker=marker, edgecolors=NODE_EDGE_COLOR, linewidths=1.1, zorder=5)
-        ax.text(x, y, n, fontsize=10, ha="center", va="center", color="#041726", zorder=6)
+        x, y = pos[n]
+        is_dead = n in cycle_nodes
+        color = DEADLOCK_COLOR if is_dead else (
+            PROCESS_COLOR if data["ntype"] == "process" else RESOURCE_COLOR
+        )
 
-    title = "DEADLOCK DETECTED" if dead_nodes else "SYSTEM STATE"
-    ax.set_title(title, color=ACCENT_HEX, fontsize=16, pad=12)
+        marker = "o" if data["ntype"] == "process" else "s"
+        ax.scatter([x], [y], s=NODE_SIZE, c=color, marker=marker,
+                   edgecolors=NODE_EDGE_COLOR, linewidths=1.2)
+        ax.text(x, y, n, fontsize=10, ha="center", va="center", color=NODE_TEXT_COLOR)
+
+        # instance dots
+        if data["ntype"] == "resource":
+            inst = data.get("instances", 1)
+            for i in range(inst):
+                ax.scatter([x + 0.02*(i - inst/2)], [y + 0.045],
+                           s=30, c="#8be9fd", edgecolors="#ffffff")
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, facecolor=BG, bbox_inches="tight")
+    fig.savefig(buf, format="png", dpi=140, facecolor=BG, bbox_inches="tight")
     plt.close(fig)
     buf.seek(0)
     return buf.read()
 
+
 # -------------------------------------------------------
-# ANALYZE endpoint
+# ANALYZE
 # -------------------------------------------------------
 @app.route("/analyze", methods=["POST"])
 def analyze():
     try:
-        payload = request.get_json(force=True) or {}
-        G = build_graph(payload)
-        cycle = detect_cycle(G)
-        png = draw_png_bytes(G, cycle)
+        raw = request.get_json(force=True) or {}
+        norm = normalize_payload(raw)
+
+        # multi-instance
+        multi = detect_deadlock_multi_instance(norm)
+        algo1 = "multi-instance-matrix" if multi["deadlocked"] else "no-deadlock-matrix"
+
+        # cycle
+        G = build_graph(norm)
+        cycle = detect_cycle(G) or []
+        algo2 = "graph-cycle" if cycle else "no-cycle-detected"
+
+        png = draw_png_bytes(G, set(cycle))
         b64 = base64.b64encode(png).decode("utf-8")
-        return jsonify({"deadlock": bool(cycle), "cycle": cycle, "visualization": b64})
+
+        return jsonify({
+            "deadlock": multi["deadlocked"],
+            "deadlocked_processes": multi["deadlocked_processes"],
+            "cycle": cycle,
+            "visualization": b64,
+            "algorithm_used": algo1,
+            "cycle_algorithm_used": algo2
+        })
+
     except Exception as e:
         app.logger.exception("Analyze failed")
         return jsonify({"error": str(e)}), 500
 
+
 # -------------------------------------------------------
-# Export endpoint: PDF (rich Theme B) or PNG
+# EXPORT REPORT (PDF or PNG)
 # -------------------------------------------------------
 @app.route("/export", methods=["POST"])
 def export_report():
-    """
-    Accepts JSON with keys:
-      - processes, resources, request_edges, allocation_edges
-      - analysis (optional): { explanation, fixes: [] }
-      - backendVisualizationBase64 (optional)
-      - format (optional): "pdf" (default) or "png"
-    Returns: PDF or PNG attachment.
-    """
     try:
-        payload = request.get_json(force=True) or {}
-        fmt = (payload.get("format") or "pdf").lower()
+        raw = request.get_json(force=True) or {}
+        norm = normalize_payload(raw)
+        fmt = (raw.get("format") or "pdf").lower()
 
-        # Build graph + detect cycle
-        G = build_graph(payload)
+        G = build_graph(norm)
         cycle = detect_cycle(G)
-        dead = bool(cycle)
+        multi = detect_deadlock_multi_instance(norm)
 
-        # Prepare image: use backend-provided PNG if valid, else generate
-        backend_img_b64 = payload.get("backendVisualizationBase64")
-        image_obj = None
-        if backend_img_b64:
+        # visualization
+        backend_png = raw.get("backendVisualizationBase64")
+        if backend_png:
             try:
-                raw = base64.b64decode(backend_img_b64)
-                image_obj = Image.open(BytesIO(raw)).convert("RGBA")
-            except Exception:
-                image_obj = None
+                img = Image.open(BytesIO(base64.b64decode(backend_png))).convert("RGBA")
+            except:
+                img = None
+        else:
+            img = None
 
-        if image_obj is None:
-            png_bytes = draw_png_bytes(G, cycle)
-            image_obj = Image.open(BytesIO(png_bytes)).convert("RGBA")
+        if img is None:
+            img = Image.open(BytesIO(draw_png_bytes(G, set(cycle)))).convert("RGBA")
 
-        # PNG export path
+        # PNG Export
         if fmt == "png":
             buf = BytesIO()
-            image_obj.save(buf, format="PNG")
+            img.save(buf, "PNG")
             buf.seek(0)
-            return send_file(buf, mimetype="image/png", as_attachment=True, download_name="visualization.png")
+            return send_file(buf, mimetype="image/png",
+                             as_attachment=True, download_name="visualization.png")
 
-        # PDF export — Theme B (white background + blue accent #0000CC)
+        # ------- PDF EXPORT -------
         buffer = BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
         width, height = landscape(A4)
 
-        # light page border
-        pdf.setStrokeColorRGB(0.85, 0.85, 0.85)
-        pdf.setLineWidth(1)
-        margin = 20
-        pdf.rect(margin, margin, width - margin*2, height - margin*2, stroke=1, fill=0)
+        margin = 22
 
-        # top accent bar (always ACCENT_RGB)
+        # Accent bar
         pdf.setFillColorRGB(*ACCENT_RGB)
-        pdf.rect(0, height - 72, width, 72, fill=1, stroke=0)
+        pdf.rect(0, height - 72, width, 72, fill=1)
 
-        # Title text (white on accent)
+        # Title
         pdf.setFillColorRGB(1, 1, 1)
         pdf.setFont("Helvetica-Bold", 20)
-        pdf.drawCentredString(width/2, height - 42, "Resource Allocation Graph — System Report")
+        pdf.drawCentredString(width/2, height - 42,
+                              "Resource Allocation Graph — System Report")
 
-        # small subtitle
+        # SUBTITLE
         pdf.setFont("Helvetica", 10)
-        pdf.drawCentredString(width/2, height - 58, "Automated analysis of resource allocation & deadlock risk")
+        pdf.drawCentredString(width/2, height - 58,
+                              "Automated analysis of resource allocation & deadlock risk")
 
-        # Left column: system overview & stats
         left_x = 48
         y = height - 110
+
         pdf.setFillColorRGB(0, 0, 0)
         pdf.setFont("Helvetica-Bold", 12)
         pdf.drawString(left_x, y, "System Overview")
         y -= 18
+
         pdf.setFont("Helvetica", 10)
+        pdf.drawString(left_x, y, f"Processes: {', '.join(norm['processes'])}")
+        y -= 14
 
-        processes = payload.get("processes", []) or []
-        resources = payload.get("resources", []) or []
-        req_edges = payload.get("request_edges", []) or []
-        alloc_edges = payload.get("allocation_edges", []) or []
-        total_edges = len(req_edges) + len(alloc_edges)
+        pdf.drawString(left_x, y, f"Resources: {', '.join([f"{r['id']}({r['instances']})" for r in norm['resources']])}")
+        y -= 14
 
-        pdf.drawString(left_x, y, f"Processes: {', '.join(processes) if processes else '(none)'}")
+        req = norm["request_edges"]
+        alloc = norm["allocation_edges"]
+        pdf.drawString(left_x, y, f"Request edges: {len(req)}")
         y -= 14
-        pdf.drawString(left_x, y, f"Resources: {', '.join(resources) if resources else '(none)'}")
-        y -= 14
-        pdf.drawString(left_x, y, f"Total edges: {total_edges}")
-        y -= 14
-        pdf.drawString(left_x, y, f"Request edges: {len(req_edges)}")
-        y -= 14
-        pdf.drawString(left_x, y, f"Allocation edges: {len(alloc_edges)}")
-        y -= 18
+        pdf.drawString(left_x, y, f"Allocation edges: {len(alloc)}")
+        y -= 20
 
-        # Graph statistics box (compact)
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(left_x, y, "Graph Statistics")
+        # DEADLOCK (multi-instance)
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(left_x, y, "Deadlock Analysis (Multi-Instance)")
         y -= 16
-        pdf.setFont("Helvetica", 10)
-        pdf.drawString(left_x + 6, y, f"• Total nodes: {len(processes) + len(resources)}")
-        y -= 12
-        pdf.drawString(left_x + 6, y, f"• Processes: {len(processes)}")
-        y -= 12
-        pdf.drawString(left_x + 6, y, f"• Resources: {len(resources)}")
-        y -= 12
-        y -= 8
 
-        # Deadlock section
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(left_x, y, "Deadlock Analysis")
-        y -= 16
         pdf.setFont("Helvetica", 10)
-        pdf.drawString(left_x + 6, y, f"Deadlock detected: {'YES' if dead else 'NO'}")
+        pdf.drawString(left_x, y,
+                       f"Deadlock detected: {'YES' if multi['deadlocked'] else 'NO'}")
         y -= 14
-        if dead:
-            pdf.drawString(left_x + 6, y, "Cycle:")
-            y -= 12
-            # wrap cycle nicely
+
+        if multi["deadlocked"]:
+            pdf.drawString(left_x, y,
+                           f"Deadlocked Processes: {', '.join(multi['deadlocked_processes'])}")
+            y -= 14
+
+        pdf.drawString(left_x, y,
+                       f"Algorithm: multi-instance-matrix")
+        y -= 20
+
+        # CYCLE
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(left_x, y, "Cycle Detection (Graph-Based)")
+        y -= 16
+
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(left_x, y, f"Cycle detected: {'YES' if cycle else 'NO'}")
+        y -= 14
+
+        if cycle:
             cyc_text = " → ".join(cycle)
-            # break into lines of ~60 chars
-            import textwrap
-            wrapped = textwrap.wrap(cyc_text, width=80)
-            for wline in wrapped:
-                pdf.drawString(left_x + 12, y, wline)
+            for line in textwrap.wrap(cyc_text, width=80):
+                pdf.drawString(left_x + 12, y, line)
                 y -= 12
             y -= 6
-        else:
-            pdf.drawString(left_x + 6, y, "No cycle was detected.")
-            y -= 16
 
-        # Fix suggestions (if any passed in analysis)
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(left_x, y, "Fix Suggestions")
+        # Edge samples
+        pdf.setFont("Helvetica-Bold", 12)
+        pdf.drawString(left_x, y, "Edge Samples")
         y -= 16
         pdf.setFont("Helvetica", 10)
-        analysis = payload.get("analysis") or {}
-        fixes = analysis.get("fixes") if isinstance(analysis.get("fixes"), list) else []
-        if fixes:
-            for fs in fixes:
-                # wrap long fixes
-                import textwrap as _tw
-                lines = _tw.wrap(fs, width=80)
-                for ln in lines:
-                    pdf.drawString(left_x + 6, y, "• " + ln)
-                    y -= 12
-                y -= 4
-        else:
-            pdf.drawString(left_x + 6, y, "No automated suggestions available.")
+
+        for e in req[:4]:
+            pdf.drawString(left_x + 6, y,
+                           f"Request: {e['from']}→{e['to']} (x{e['amount']})")
+            y -= 12
+        for e in alloc[:4]:
+            pdf.drawString(left_x + 6, y,
+                           f"Alloc:   {e['from']}→{e['to']} (x{e['amount']})")
             y -= 12
 
-        # Timestamp + footer note
-        y -= 8
-        pdf.setFont("Helvetica", 9)
-        pdf.setFillColorRGB(0.3, 0.3, 0.3)
-        pdf.drawString(left_x, margin + 20, "Generated by Resource Allocation Graph Simulator")
-        ts = datetime.now().strftime("%d %b %Y, %I:%M %p")
-        pdf.drawRightString(width - 48, margin + 20, f"Report generated: {ts}")
-
-        # Right column: visual preview + edge list summary
-        right_x = width * 0.52
+        # PREVIEW IMAGE
+        right_x = width * 0.55
         preview_w = width - right_x - 48
         preview_h = height * 0.55
 
-        # draw preview box
-        pdf.setFillColorRGB(0.98, 0.98, 0.98)
-        pdf.rect(right_x - 6, height - 110 - preview_h - 6, preview_w + 12, preview_h + 12, fill=0, stroke=1)
+        pdf.setStrokeColorRGB(0.8, 0.8, 0.8)
+        pdf.rect(right_x - 6,
+                 height - 110 - preview_h - 6,
+                 preview_w + 12, preview_h + 12)
 
-        # helper to place image centered in preview box
-        def draw_image_in_preview(img_obj):
-            try:
-                w, h = img_obj.size
-                # allow some padding inside the preview box
-                box_w = preview_w - 20
-                box_h = preview_h - 20
-                scale = min(box_w / w, box_h / h, 1.0)
-                iw, ih = int(w * scale), int(h * scale)
-                img_reader = ImageReader(img_obj.resize((iw, ih)))
-                x = right_x + (preview_w - iw) / 2
-                y_top = height - 110 - 10
-                pdf.drawImage(img_reader, x, y_top - ih, width=iw, height=ih)
-            except Exception as e:
-                app.logger.exception("Image placement error: %s", e)
+        # Draw image centered
+        iw, ih = img.size
+        scale = min((preview_w - 20)/iw, (preview_h - 20)/ih, 1.0)
+        iw2, ih2 = int(iw*scale), int(ih*scale)
+        pdf.drawImage(
+            ImageReader(img.resize((iw2, ih2))),
+            right_x + (preview_w - iw2)/2,
+            height - 130 - ih2,
+            width=iw2, height=ih2
+        )
 
-        draw_image_in_preview(image_obj)
-
-        # small edge list summary below image
-        edge_list_y = height - 110 - preview_h - 30
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(right_x, edge_list_y, "Edges (sample)")
-        edge_list_y -= 14
+        # FOOTER
         pdf.setFont("Helvetica", 9)
-        # show up to first 8 edges for readability
-        all_edges = [{"from": u, "to": v, "type": d.get("etype")} for u, v, d in G.edges(data=True)]
-        sample_edges = all_edges[:8]
-        for e in sample_edges:
-            pdf.drawString(right_x + 6, edge_list_y, f"{e['from']} → {e['to']} ({e['type']})")
-            edge_list_y -= 12
-        if len(all_edges) > len(sample_edges):
-            pdf.drawString(right_x + 6, edge_list_y, f"... and {len(all_edges) - len(sample_edges)} more")
-            edge_list_y -= 12
+        pdf.setFillColorRGB(0.3, 0.3, 0.3)
+        pdf.drawString(left_x, margin,
+                       "Generated by Resource Allocation Graph Simulator")
+        pdf.drawRightString(
+            width - left_x,
+            margin,
+            datetime.now().strftime("Report generated: %d %b %Y, %I:%M %p")
+        )
 
-        # Algorithm notes (bottom-left)
-        alg_x = left_x
-        alg_y = (edge_list_y - 30) if edge_list_y < y else (y - 30)
-        if alg_y < margin + 80:
-            alg_y = margin + 80
-        pdf.setFont("Helvetica-Bold", 11)
-        pdf.drawString(alg_x, alg_y, "Algorithms & Notes")
-        alg_y -= 14
-        pdf.setFont("Helvetica", 9)
-        notes = [
-            "Deadlock detection: cycle detection (directed graph).",
-            "Safety checks: Banker's algorithm (simulative).",
-            "Visualization: deterministic spring layout (seeded)."
-        ]
-        for n in notes:
-            pdf.drawString(alg_x + 6, alg_y, f"• {n}")
-            alg_y -= 12
-
-        # finalize PDF
         pdf.showPage()
         pdf.save()
+
         buffer.seek(0)
-        return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name="system_report.pdf")
+        return send_file(
+            buffer,
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name="system_report.pdf"
+        )
 
     except Exception as e:
         app.logger.exception("Export failed")
         return jsonify({"error": str(e)}), 500
 
+
 # -------------------------------------------------------
-# RUN (development)
+# RUN SERVER
 # -------------------------------------------------------
 if __name__ == "__main__":
     print("Backend running at http://0.0.0.0:5000")
