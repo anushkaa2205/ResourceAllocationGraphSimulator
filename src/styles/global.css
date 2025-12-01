@@ -515,3 +515,80 @@ body {
 @media (max-width: 920px){
   .btn { padding: 6px 8px; font-size: 14px; }
 }
+.controls-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.control-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  padding: 14px;
+  border-radius: 12px;
+  min-width: 260px;
+  flex: 1;
+  box-shadow: 0 6px 22px rgba(0,0,0,0.35);
+}
+
+.group-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #cdd8ef;
+  margin-bottom: 10px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+/* ===============================
+   FIXED CYBERPUNK BUTTON THEME — THEME B
+   =============================== */
+
+.btn {
+  background: transparent !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  padding: 8px 12px !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  transition: 0.15s ease !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45) !important;
+}
+
+/* PRIMARY BUTTON (Analyze Graph, Create Edge, etc.) */
+.btn.primary {
+  background: linear-gradient(90deg,#8a5cff,#b794ff) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 0 18px rgba(138,92,255,0.55) !important;
+}
+
+.btn.primary:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 0 28px rgba(138,92,255,0.6) !important;
+}
+
+.btn.primary:active {
+  transform: translateY(-1px) !important;
+}
+
+/* GHOST BUTTONS (Sidebar controls) */
+.btn.ghost {
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.btn.ghost:hover {
+  background: rgba(138,92,255,0.12) !important;
+  border-color: rgba(138,92,255,0.25) !important;
+  box-shadow: 0 0 18px rgba(138,92,255,0.18) !important;
+}
+
+.btn.ghost:active {
+  transform: translateY(1px) !important;
+}
