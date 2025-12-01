@@ -605,3 +605,9 @@ body {
               0 0 28px rgba(80, 140, 255, 0.45);
   filter: brightness(1.12);
 }
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden !important;   /* REMOVE RIGHT SCROLLBAR */
+  height: 100%;
+}
