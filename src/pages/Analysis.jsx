@@ -18,8 +18,17 @@ export default function Analysis() {
   const backendImgSrc = backendImgB64 ? `data:image/png;base64,${backendImgB64}` : null;
 
   const handleGoToVisualization = () => {
-    navigate("/visualization", { state: { ...state, openModal: true } });
-  };
+  navigate("/visualizer", {
+    state: {
+      graph,
+      cycle,
+      positions: state?.positions ?? {},   // safest
+      analysis,
+      backendVisualizationBase64: analysis?.backend?.visualization
+    }
+  });
+};
+
 
   const handleGoToReport = () => {
     navigate("/report", { state: { ...state, analysis, graph, cycle } });
