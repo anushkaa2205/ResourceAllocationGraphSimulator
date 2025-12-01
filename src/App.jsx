@@ -1,4 +1,7 @@
+// src/App.jsx
+import React from "react";
 import { Routes, Route } from "react-router-dom";
+
 import Navbar from "./components/Navbar";
 
 import Home from "./pages/Home";
@@ -9,16 +12,17 @@ import Report from "./pages/Report";
 
 export default function App() {
   return (
-    <div>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <Navbar />
-
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/simulator" element={<Simulator />} />
-        <Route path="/analysis" element={<Analysis />} />
-        <Route path="/visualizer" element={<Visualizer />} />
-        <Route path="/report" element={<Report />} />
-      </Routes>
+      <main style={{ flex: 1 }}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/simulator" element={<Simulator />} />
+          <Route path="/analysis" element={<Analysis />} />
+          <Route path="/visualizer" element={<Visualizer />} />
+          <Route path="/report" element={<Report />} />
+        </Routes>
+      </main>
     </div>
   );
 }

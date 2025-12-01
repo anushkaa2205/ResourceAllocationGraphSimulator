@@ -1,17 +1,18 @@
+// src/components/ControlsPanel.jsx
 import React, { useState } from "react";
 
 export default function ControlsPanel({
-  processes,
-  resources,
-  onAddProcess,
-  onAddResource,
-  onCreateEdge,
-  onResetLayout,
-  onResetGraph,
-  analyzeGraph,
-  onLoadDeadlock,
-  onLoadSafe,
-  onLoadComplex
+  processes = [],
+  resources = [],
+  onAddProcess = () => {},
+  onAddResource = () => {},
+  onCreateEdge = () => {},
+  onResetLayout = () => {},
+  onResetGraph = () => {},
+  analyzeGraph = () => {},
+  onLoadDeadlock = () => {},
+  onLoadSafe = () => {},
+  onLoadComplex = () => {}
 }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -20,8 +21,18 @@ export default function ControlsPanel({
   const allNodes = [...processes, ...resources];
 
   function createEdge() {
-    if (!from || !to) return alert("Select both nodes");
+    if (!from || !to) {
+      alert("Select both nodes (from & to)");
+      return;
+    }
+    if (from === to) {
+      alert("From and To cannot be same");
+      return;
+    }
     onCreateEdge({ from, to, type });
+    // reset selection
+    setFrom("");
+    setTo("");
   }
 
   return (
@@ -48,11 +59,10 @@ export default function ControlsPanel({
           gap: "10px",
           marginTop: "10px",
           padding: "10px",
-          background: "rgba(255,255,255,0.06)",
+          background: "rgba(255,255,255,0.04)",
           borderRadius: "8px"
         }}
       >
-        {/* FROM */}
         <select value={from} onChange={(e) => setFrom(e.target.value)}>
           <option value="">From…</option>
           {allNodes.map((n) => (
@@ -60,7 +70,6 @@ export default function ControlsPanel({
           ))}
         </select>
 
-        {/* TO */}
         <select value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="">To…</option>
           {allNodes.map((n) => (
@@ -68,7 +77,6 @@ export default function ControlsPanel({
           ))}
         </select>
 
-        {/* TYPE */}
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="request">Request (P → R)</option>
           <option value="allocation">Allocation (R → P)</option>

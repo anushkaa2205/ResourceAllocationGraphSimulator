@@ -1,3 +1,4 @@
+// src/pages/Simulator.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -7,13 +8,14 @@ import DeadlockAlert from "../components/DeadlockAlert";
 import VisualizerModal from "../components/VisualizerModal";
 
 import { createEmptyGraph, detectDeadlockDetailed } from "../utils/rag";
-import { sendGraphToBackend } from "../utils/sendGraphToBackend";
+import { sendGraphToBackend } from "../utils/sendGraphToBackend"; // path based on your project
 
 import { explainDeadlock } from "../analysis/explain";
 import { getFixSuggestions } from "../analysis/advisor";
 import { predictDeadlock } from "../analysis/predict";
 import { isSafeState } from "../analysis/bankers";
 import { computeMetrics } from "../analysis/metrics";
+
 
 let EDGE_COUNTER = 1;
 
@@ -24,7 +26,8 @@ export default function Simulator() {
   const [graph, setGraph] = useState(() => createEmptyGraph());
   const [positions, setPositions] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("rag_positions")) || {};
+      const v = localStorage.getItem("rag_positions");
+      return v ? JSON.parse(v) : {};
     } catch {
       return {};
     }
@@ -44,7 +47,7 @@ export default function Simulator() {
 
   /* ------------------ EFFECTS ------------------ */
   useEffect(() => {
-    localStorage.setItem("rag_positions", JSON.stringify(positions));
+    try { localStorage.setItem("rag_positions", JSON.stringify(positions)); } catch {}
   }, [positions]);
 
   const detectionResult = detectDeadlockDetailed(graph);
@@ -52,20 +55,20 @@ export default function Simulator() {
   useEffect(() => {
     const prediction = predictDeadlock({
       ...graph,
-      cycles: detectionResult.cycles
+      cycles: detectionResult?.cycles || []
     });
 
     setAnalysis({
-      explanation: explainDeadlock(graph, detectionResult.cycles),
-      fixes: getFixSuggestions(graph, detectionResult.cycles),
+      explanation: explainDeadlock(graph, detectionResult?.cycles || []),
+      fixes: getFixSuggestions(graph, detectionResult?.cycles || []),
       prediction,
       safety: isSafeState(graph),
       metrics: computeMetrics(graph)
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graph]);
 
   /* ------------------ HELPERS ------------------ */
-
   const showToast = (text, ms = 1500) => {
     setToast(text);
     setTimeout(() => setToast(null), ms);
@@ -75,8 +78,7 @@ export default function Simulator() {
     return { x: 140 + i * 150, y: kind === "process" ? 150 : 350 };
   };
 
-  /* ---------- BATCH 5: SAMPLE + LAYOUT HELPERS ---------- */
-
+  /* ---------- SAMPLE + LAYOUT HELPERS ---------- */
   function computeDefaultPositions(g) {
     const pos = {};
     const p = g.processes.length;
@@ -97,7 +99,7 @@ export default function Simulator() {
   function resetLayout() {
     const newPos = computeDefaultPositions(graph);
     setPositions(newPos);
-    localStorage.setItem("rag_positions", JSON.stringify(newPos));
+    try { localStorage.setItem("rag_positions", JSON.stringify(newPos)); } catch {}
     showToast("Layout reset");
   }
 
@@ -148,13 +150,11 @@ export default function Simulator() {
 
     const pos = computeDefaultPositions(g);
     setPositions(pos);
-    localStorage.setItem("rag_positions", JSON.stringify(pos));
-
+    try { localStorage.setItem("rag_positions", JSON.stringify(pos)); } catch {}
     showToast("Sample Loaded");
   }
 
   /* ------------------ GRAPH OPERATIONS ------------------ */
-
   const addProcess = () => {
     const id = "P" + (graph.processes.length + 1);
     setGraph(prev => {
@@ -183,11 +183,11 @@ export default function Simulator() {
 
   const createEdge = ({ from, to, type }) => {
     if (!from || !to || !type) return;
-
-    const exists = graph.edges.some(
-      e => e.from === from && e.to === to && e.type === type
-    );
-    if (exists) return showToast("Edge already exists");
+    const exists = graph.edges.some(e => e.from === from && e.to === to && e.type === type);
+    if (exists) {
+      showToast("Edge already exists");
+      return;
+    }
 
     const id = "e" + EDGE_COUNTER++;
     setGraph(prev => ({
@@ -208,7 +208,7 @@ export default function Simulator() {
   const resetGraph = () => {
     setGraph(createEmptyGraph());
     setPositions({});
-    localStorage.removeItem("rag_positions");
+    try { localStorage.removeItem("rag_positions"); } catch {}
     showToast("Graph reset");
   };
 
@@ -217,34 +217,61 @@ export default function Simulator() {
   }, []);
 
   /* ------------------ ANALYZE GRAPH ------------------ */
-  const analyzeGraph = async () => {
-    const payload = {
-      processes: graph.processes,
-      resources: graph.resources,
-      request_edges: graph.edges
-        .filter(e => e.type === "request")
-        .map(e => [e.from, e.to]),
-      allocation_edges: graph.edges
-        .filter(e => e.type === "allocation")
-        .map(e => [e.from, e.to])
-    };
+  // inside Simulator.jsx (replace existing analyzeGraph)
+const analyzeGraph = async () => {
+  const payload = {
+    processes: graph.processes,
+    resources: graph.resources,
+    request_edges: graph.edges.filter(e => e.type === "request").map(e => [e.from, e.to]),
+    allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => [e.from, e.to])
+  };
 
-    const res = await sendGraphToBackend(payload);
+  showToast("Analyzing system...");
+  let backendResult;
+  try {
+    backendResult = await sendGraphToBackend(payload);
+  } catch (err) {
+    console.error("sendGraphToBackend threw:", err);
+    showToast("Analysis failed (network). Check backend.");
+    return;
+  }
 
-    if (res) {
-      if (res.deadlock) showToast("DEADLOCK: " + res.cycle.join(" → "));
-      else showToast("Safe — No Deadlock");
+  // backend helper returns { error: ... } on failure in the robust helper I suggested
+  if (!backendResult || backendResult.error) {
+    console.error("Backend error result:", backendResult);
+    showToast("Analysis failed: " + (backendResult?.error || "no response"));
+    return;
+  }
 
-      navigate("/analysis", {
-        state: { analysis, graph, cycle: detectionResult.cycles }
-      });
-
-      if (res.visualization) {
-        setVisualization(res.visualization);
-        setVisualizationOpen(true);
-      }
+  // detectionResult is computed locally (detectDeadlockDetailed)
+  const localDetection = detectDeadlockDetailed(graph);
+  // Compose analysis object (use your analysis modules)
+  const composedAnalysis = {
+    explanation: explainDeadlock(graph, localDetection.cycles),
+    fixes: getFixSuggestions(graph, localDetection.cycles),
+    prediction: predictDeadlock({ ...graph, cycles: localDetection.cycles }),
+    safety: isSafeState(graph),
+    metrics: computeMetrics(graph),
+    // add backend-provided fields:
+    backend: {
+      deadlock: backendResult.deadlock,
+      cycle: backendResult.cycle,
+      visualization: backendResult.visualization  // base64 png
     }
   };
+
+  // store visualization but do not auto-open modal
+  if (backendResult.visualization) setVisualization(backendResult.visualization);
+
+  // navigate to the Analysis page with full state
+  navigate("/analysis", {
+    state: {
+      graph,
+      analysis: composedAnalysis,
+      cycle: backendResult.cycle || localDetection.cycles
+    }
+  });
+};
 
   /* ------------------ RENDER ------------------ */
   return (
@@ -276,7 +303,7 @@ export default function Simulator() {
         <div style={{ height: 420 }}>
           <GraphCanvas
             graph={graph}
-            cycles={detectionResult.cycles}
+            cycles={detectionResult?.cycles || []}
             positions={positions}
             onPositionChange={updateNodePosition}
           />
@@ -287,11 +314,9 @@ export default function Simulator() {
         <h3 style={{ marginTop: 20 }}>Edges</h3>
         <ul>
           {graph.edges.map(e => (
-            <li key={e.id}>
+            <li key={e.id} style={{ marginBottom: 6 }}>
               {e.id}: {e.from} → {e.to} ({e.type})
-              <button onClick={() => removeEdge(e.id)} style={{ marginLeft: 8 }}>
-                Delete
-              </button>
+              <button onClick={() => removeEdge(e.id)} style={{ marginLeft: 8 }}>Delete</button>
             </li>
           ))}
         </ul>
@@ -302,9 +327,14 @@ export default function Simulator() {
       <VisualizerModal
         open={visualizationOpen}
         onClose={() => setVisualizationOpen(false)}
-        graph={graph}
+        graph={{
+          processes: graph.processes,
+          resources: graph.resources,
+          request_edges: graph.edges.filter(e => e.type === "request").map(e => [e.from, e.to]),
+          allocation_edges: graph.edges.filter(e => e.type === "allocation").map(e => [e.from, e.to])
+        }}
         positions={positions}
-        cycle={detectionResult.cycles}
+        cycle={detectionResult?.cycles || []}
         backendVisualizationBase64={visualization}
         onRegenerate={analyzeGraph}
       />

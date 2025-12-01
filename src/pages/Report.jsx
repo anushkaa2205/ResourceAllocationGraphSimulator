@@ -11,6 +11,11 @@ async function postAndDownload(endpoint, body, filename) {
     body: JSON.stringify(body),
   });
 
+  if (!resp.ok) {
+    const txt = await resp.text().catch(() => resp.statusText);
+    throw new Error(`Server error: ${resp.status} ${txt}`);
+  }
+
   const blob = await resp.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -33,7 +38,7 @@ export default function Report() {
 
   const [msg, setMsg] = useState("");
 
-  const makePayload = () => ({
+  const makePayload = (extra = {}) => ({
     processes: graph?.processes || [],
     resources: graph?.resources || [],
     request_edges:
@@ -42,14 +47,18 @@ export default function Report() {
       graph?.edges?.filter((e) => e.type === "allocation").map((e) => [e.from, e.to]) || [],
     analysis: analysis || {},
     backendVisualizationBase64: backendImage,
+    ...extra,
   });
 
   async function exportPDF() {
     try {
       setMsg("Generating PDF...");
-      await postAndDownload(`${BACKEND}/export`, makePayload(), "system_report.pdf");
-      setMsg("PDF Downloaded");
+      // send theme: "B" (single default theme)
+      const payload = makePayload({ format: "pdf", theme: "B" });
+      await postAndDownload(`${BACKEND}/export`, payload, "system_report.pdf");
+      setMsg("PDF downloaded");
     } catch (e) {
+      console.error(e);
       setMsg("Error: " + e.message);
     }
   }
@@ -57,11 +66,11 @@ export default function Report() {
   async function exportPNG() {
     try {
       setMsg("Generating PNG...");
-      const payload = makePayload();
-      payload.format = "png";
+      const payload = makePayload({ format: "png" });
       await postAndDownload(`${BACKEND}/export`, payload, "visualization.png");
-      setMsg("PNG Downloaded");
+      setMsg("PNG downloaded");
     } catch (e) {
+      console.error(e);
       setMsg("Error: " + e.message);
     }
   }
@@ -70,15 +79,20 @@ export default function Report() {
     <div style={{ padding: 30 }}>
       <h1>System Report</h1>
 
-      <p>This page generates PDF/PNG exports of your RAG analysis.</p>
+      <p>This page generates PDF/PNG exports of your RAG analysis (uses backend /export).</p>
 
-      <button onClick={() => nav("/simulator")} className="btn">Back to Simulator</button>
-      <button onClick={() => nav("/analysis")} className="btn" style={{ marginLeft: 10 }}>
-        Back to Analysis
-      </button>
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={() => nav("/simulator")} className="btn">Back to Simulator</button>
+        <button onClick={() => nav("/analysis")} className="btn" style={{ marginLeft: 10 }}>
+          Back to Analysis
+        </button>
+      </div>
 
-      <div style={{ marginTop: 20 }}>
+      <div style={{ marginTop: 10 }}>
+        {/* single PDF button (default theme B) */}
         <button onClick={exportPDF} className="btn">Download PDF</button>
+
+        {/* PNG */}
         <button onClick={exportPNG} className="btn" style={{ marginLeft: 10 }}>
           Download PNG
         </button>
@@ -109,7 +123,8 @@ export default function Report() {
         background: "rgba(255,255,255,0.06)",
         padding: 20,
         borderRadius: 8,
-        color: "#ddd"
+        color: "#ddd",
+        overflowX: "auto"
       }}>
 {JSON.stringify(analysis, null, 2)}
       </pre>
