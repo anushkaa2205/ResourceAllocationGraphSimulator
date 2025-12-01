@@ -1,38 +1,154 @@
 export default function About() {
   const github = "https://github.com/anushkaa2205/ResourceAllocationGraphSimulator.git";
 
-  const wrap = {
-    padding: 32, maxWidth: 1100, margin: "48px auto", color: "#dfefff", fontFamily: "Inter, system-ui", background: "#08030a"
+  // AI Blue Theme (matches Home)
+  const theme = {
+    bg: "radial-gradient(circle at 50% 0%, #123B86 0%, #071326 50%, #02050A 100%)",
+
+    cardBg: "rgba(255,255,255,0.05)",
+    cardStrong: "rgba(16,22,34,0.88)",
+    border: "1px solid rgba(80,140,255,0.14)",
+
+    header: "#FFFFFF",
+    text: "#E1E7EF",
+    muted: "#A3AEC2",
+    paragraph: "#B9C3D4",
+
+    primary: "#5CAEFF",
+    accent: "#6EC8FF",
+
+    glowLight: "0 0 18px rgba(90,140,255,0.35)",
+    glowMedium: "0 0 32px rgba(80,140,255,0.45)",
   };
+
+  // WRAPPER
+  const wrap = {
+    padding: "52px 24px",
+    maxWidth: 1100,
+    margin: "60px auto",
+    color: theme.text,
+    fontFamily: "Inter, system-ui",
+    background: theme.bg,
+    borderRadius: 18,
+  };
+
+  // MAIN CARD
   const card = {
-    background: "linear-gradient(180deg, rgba(16,20,28,0.85), rgba(10,12,18,0.9))", // match Home infoCard
-    borderRadius: 12, padding: 26, border: "1px solid rgba(255,255,255,0.02)",
-    boxShadow: "0 22px 64px rgba(0,0,0,0.7), 0 0 24px rgba(0,120,180,0.04)"
+    background: theme.cardStrong,
+    borderRadius: 16,
+    padding: 32,
+    border: theme.border,
+    boxShadow: `${theme.glowLight}, 0 22px 64px rgba(0,0,0,0.7)`,
+    backdropFilter: "blur(12px)",
+  };
+
+  // Sub cards
+  const infoCard = {
+    padding: 18,
+    borderRadius: 14,
+    background: "rgba(255,255,255,0.04)",
+    border: theme.border,
+    boxShadow: "0 0 18px rgba(0,0,0,0.2)",
+    transition: "transform .25s ease, box-shadow .25s ease",
+  };
+
+  const infoCardHover = {
+    transform: "translateY(-4px) scale(1.04)",
+    boxShadow: theme.glowMedium,
+    background: "rgba(255,255,255,0.06)",
   };
 
   return (
     <div style={wrap}>
       <div style={card}>
-        <h1 style={{ margin: 0, color: "#eef7ff", fontSize: 28 }}>About RAG Simulator</h1>
-        <p style={{ marginTop: 10, color: "#b8dff0", lineHeight: 1.6 }}>
-          RAG Simulator is a technical visualization environment for modeling resource allocation graphs, stepping through assignments and releases, detecting cycles, and exploring fixes.
+
+        {/* Title */}
+        <h1
+  style={{
+    margin: 0,
+    color: theme.header,
+    fontSize: 32,
+    fontWeight: 800,
+    textShadow: "0 0 20px rgba(120,150,255,0.25)",
+  }}
+>
+  About RAG Simulator
+</h1>
+
+
+        {/* Description */}
+        <p style={{ marginTop: 14, color: theme.paragraph, lineHeight: 1.7, fontSize: 15 }}>
+          RAG Simulator is a modern teaching and debugging tool for visualizing Resource Allocation Graphs,
+          understanding deadlock theory, and exploring request–allocation dynamics through interactive simulation.
         </p>
 
-        {/* small info cards with same palette */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, marginTop: 18 }}>
-          <div style={{ padding: 14, borderRadius: 12, background: "linear-gradient(90deg, rgba(0,180,200,0.03), rgba(6,120,160,0.02))", border: "1px solid rgba(0,180,200,0.06)" }}>
-            <h3 style={{ margin: 0, color: "#eef7ff" }}>Purpose</h3>
-            <p style={{ marginTop: 8, color: "#a8dbe9" }}>Learn deadlock theory and visualize resource relationships.</p>
+        {/* Info Cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))",
+            gap: 18,
+            marginTop: 28,
+          }}
+        >
+          {/* Card 1 */}
+          <div
+            className="infoCard"
+            style={infoCard}
+            onMouseOver={(e) => Object.assign(e.currentTarget.style, infoCardHover)}
+            onMouseOut={(e) =>
+              Object.assign(e.currentTarget.style, {
+                ...infoCard,
+                background: "rgba(255,255,255,0.04)",
+                transform: "none",
+              })
+            }
+          >
+            <h3 style={{ margin: 0, color: theme.header, fontSize: 18 }}>Purpose</h3>
+            <p style={{ marginTop: 8, color: theme.paragraph, fontSize: 14 }}>
+              Help learners visualize deadlock formation, prevention, and resource distribution.
+            </p>
           </div>
 
-          <div style={{ padding: 14, borderRadius: 12, background: "linear-gradient(90deg, rgba(46,59,78,0.03), rgba(8,12,18,0.02))", border: "1px solid rgba(46,59,78,0.04)" }}>
-            <h3 style={{ margin: 0, color: "#eef7ff" }}>Audience</h3>
-            <p style={{ marginTop: 8, color: "#a8dbe9" }}>Students, instructors and engineers diagnosing concurrency issues.</p>
+          {/* Card 2 */}
+          <div
+            className="infoCard"
+            style={infoCard}
+            onMouseOver={(e) => Object.assign(e.currentTarget.style, infoCardHover)}
+            onMouseOut={(e) =>
+              Object.assign(e.currentTarget.style, {
+                ...infoCard,
+                background: "rgba(255,255,255,0.04)",
+                transform: "none",
+              })
+            }
+          >
+            <h3 style={{ margin: 0, color: theme.header, fontSize: 18 }}>Audience</h3>
+            <p style={{ marginTop: 8, color: theme.paragraph, fontSize: 14 }}>
+              Students, professors, software engineers, and anyone studying concurrency & OS concepts.
+            </p>
           </div>
         </div>
 
-        <p style={{ marginTop: 18, color: "#b8dff0" }}>
-          Repo / Docs: <a href={github} target="_blank" rel="noopener noreferrer" style={{ color: "#00b4c7", fontWeight: 800 }}>GitHub</a>
+        {/* GitHub Link */}
+        <p style={{ marginTop: 24, color: theme.text, fontSize: 15 }}>
+          Repository:{" "}
+          <a
+            href={github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="netflix-hover"
+            style={{
+              color: theme.primary,
+              fontWeight: 800,
+              textDecoration: "none",
+              padding: "4px 6px",
+              borderRadius: 6,
+              transition: "0.25s",
+            }}
+          >
+            GitHub
+          </a>
         </p>
       </div>
     </div>
