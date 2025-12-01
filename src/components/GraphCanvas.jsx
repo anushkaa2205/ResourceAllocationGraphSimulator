@@ -6,7 +6,7 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
   const svgRef = useRef(null);
   const dragRef = useRef(null);
 
-  // compute layout
+  // ----- Compute node positions -----
   const nodePositions = {};
   const spacing = 220;
   const startX = 160;
@@ -23,18 +23,22 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
     nodePositions[r.id] = pos || { x: startX + i * spacing, y: bottomY };
   });
 
-  // highlight sets
+  // ----- Highlight cycle edges -----
   const highlightedNodes = new Set();
   const highlightedEdges = new Set();
-  (cycles || []).forEach(cycle => {
-    for (let i = 0; i < cycle.length - 1; i++) {
-      highlightedNodes.add(cycle[i]);
-      highlightedNodes.add(cycle[i + 1]);
-      highlightedEdges.add(`${cycle[i]}->${cycle[i + 1]}`);
+
+  (cycles || []).forEach((cycle) => {
+    for (let i = 0; i < cycle.length; i++) {
+      const a = cycle[i];
+      const b = cycle[(i + 1) % cycle.length];
+
+      highlightedNodes.add(a);
+      highlightedNodes.add(b);
+      highlightedEdges.add(`${a}->${b}`);
     }
   });
 
-  // svg pointer conversion
+  // ----- SVG pointer conversion -----
   function pointerToSvg(e) {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
@@ -43,6 +47,7 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
 
+  // ----- Dragging Logic -----
   function handlePointerDown(ev, nodeId) {
     ev.preventDefault();
     const loc = pointerToSvg(ev);
@@ -93,24 +98,51 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
 
   return (
     <svg ref={svgRef} width="100%" height="520">
-      {/* EDGES */}
-      {edges.map(e => {
+      {/* ----- ARROW HEAD ----- */}
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 Z" fill="#8be9fd" />
+        </marker>
+      </defs>
+
+      {/* ----- EDGES ----- */}
+      {edges.map((e) => {
         const a = nodePositions[e.from];
         const b = nodePositions[e.to];
         if (!a || !b) return null;
 
-        const isDead = highlightedEdges.has(`${e.from}->${e.to}`);
+        const isDeadEdge = highlightedEdges.has(`${e.from}->${e.to}`);
+
         return (
-          <g key={e.id} className={isDead ? "dead-edge" : "edge"}>
+          <g key={e.id}>
             <line
-              x1={a.x} y1={a.y}
-              x2={b.x} y2={b.y}
-              stroke={isDead ? "#ff5a7a" : "#8be9fd"}
-              strokeWidth="3"
+              ref={(el) => {
+                if (el) {
+                  // FORCE OVERRIDE EVEN IF CSS HAS !important
+                  el.style.setProperty(
+                    "stroke",
+                    isDeadEdge ? "#ff416c" : "#8be9fd",
+                    "important"
+                  );
+                  el.style.setProperty(
+                    "stroke-width",
+                    isDeadEdge ? "5" : "3",
+                    "important"
+                  );
+                }
+              }}
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={isDeadEdge ? "#ff416c" : "#8be9fd"} // still required by React
+              strokeWidth={isDeadEdge ? 5 : 3}
+              strokeDasharray={e.type === "request" ? "6 6" : "none"}
+              strokeLinecap="round"
               markerEnd="url(#arrowhead)"
             />
 
-            {/* show amount label */}
+            {/* Amount Label */}
             {e.amount > 1 && (
               <text
                 x={(a.x + b.x) / 2}
@@ -126,15 +158,11 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
         );
       })}
 
-      <defs>
-        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto">
-          <path d="M0,0 L10,5 L0,10 Z" fill="#8be9fd" />
-        </marker>
-      </defs>
-
-      {/* PROCESS NODES */}
-      {processes.map(p => {
+      {/* ----- PROCESS NODES ----- */}
+      {processes.map((p) => {
         const pos = nodePositions[p];
+        const isDead = highlightedNodes.has(p);
+
         return (
           <g
             key={p}
@@ -142,15 +170,22 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
             transform={`translate(${pos.x}, ${pos.y})`}
             onPointerDown={(e) => handlePointerDown(e, p)}
           >
-            <circle r="30" fill="#ff79c6" opacity="0.2" stroke="#ff79c6" strokeWidth="3" />
+            <circle
+              r="30"
+              fill={isDead ? "#ff416c33" : "#ff79c633"}
+              stroke={isDead ? "#ff416c" : "#ff79c6"}
+              strokeWidth="3"
+            />
             <text x="0" y="6" textAnchor="middle" fill="#fff">{p}</text>
           </g>
         );
       })}
 
-      {/* RESOURCE NODES */}
-      {resources.map(r => {
+      {/* ----- RESOURCE NODES ----- */}
+      {resources.map((r) => {
         const pos = nodePositions[r.id];
+        const isDead = highlightedNodes.has(r.id);
+
         return (
           <g
             key={r.id}
@@ -158,10 +193,19 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
             transform={`translate(${pos.x}, ${pos.y})`}
             onPointerDown={(e) => handlePointerDown(e, r.id)}
           >
-            <rect x={-36} y={-20} width={72} height={40} rx={10} fill="#7b5cff33" stroke="#7b5cff" strokeWidth="3" />
+            <rect
+              x={-36}
+              y={-20}
+              width={72}
+              height={40}
+              rx={10}
+              fill={isDead ? "#ff416c33" : "#7b5cff33"}
+              stroke={isDead ? "#ff416c" : "#7b5cff"}
+              strokeWidth="3"
+            />
             <text x="0" y="6" textAnchor="middle" fill="#fff">{r.id}</text>
 
-            {/* instance dots */}
+            {/* Instance dots */}
             {Array.from({ length: r.instances }).map((_, i) => (
               <circle
                 key={i}
