@@ -9,6 +9,8 @@ import Simulator from "./pages/Simulator";
 import Analysis from "./pages/Analysis";
 import Visualizer from "./pages/Visualizer";
 import Report from "./pages/Report";
+import About from "./pages/About";
+import Feedback from "./pages/Feedback";
 
 export default function App() {
   return (
@@ -21,6 +23,8 @@ export default function App() {
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/visualizer" element={<Visualizer />} />
           <Route path="/report" element={<Report />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/feedback" element={<Feedback />} />
         </Routes>
       </main>
     </div>
