@@ -313,6 +313,8 @@ def export_report():
 
         if img is None:
             img = Image.open(BytesIO(draw_png_bytes(G, set(cycle)))).convert("RGBA")
+        req = norm["request_edges"]
+        alloc = norm["allocation_edges"]
 
         # PNG Export
         if fmt == "png":
@@ -322,130 +324,111 @@ def export_report():
             return send_file(buf, mimetype="image/png",
                              as_attachment=True, download_name="visualization.png")
 
-        # ------- PDF EXPORT -------
+              # ------- PDF EXPORT (Professional Layout) -------
         buffer = BytesIO()
         pdf = canvas.Canvas(buffer, pagesize=landscape(A4))
         width, height = landscape(A4)
 
-        margin = 22
+        # Colors
+        accent = ACCENT_RGB
+        text_dark = (0.15, 0.15, 0.15)
+        text_light = (1, 1, 1)
 
-        # Accent bar
-        pdf.setFillColorRGB(*ACCENT_RGB)
-        pdf.rect(0, height - 72, width, 72, fill=1)
+        # ---------- HEADER ----------
+        pdf.setFillColorRGB(*accent)
+        pdf.rect(0, height - 80, width, 80, fill=1)
 
-        # Title
         pdf.setFillColorRGB(1, 1, 1)
-        pdf.setFont("Helvetica-Bold", 20)
-        pdf.drawCentredString(width/2, height - 42,
-                              "Resource Allocation Graph — System Report")
+        pdf.setFont("Helvetica-Bold", 24)
+        pdf.drawString(40, height - 45, "RAG Analysis Summary")
 
-        # SUBTITLE
-        pdf.setFont("Helvetica", 10)
-        pdf.drawCentredString(width/2, height - 58,
-                              "Automated analysis of resource allocation & deadlock risk")
+        pdf.setFont("Helvetica", 11)
+        pdf.drawString(40, height - 65, "Resource Allocation Graph • Automatically Generated")
 
-        left_x = 48
-        y = height - 110
+        pdf.setFillColorRGB(*text_dark)
 
-        pdf.setFillColorRGB(0, 0, 0)
-        pdf.setFont("Helvetica-Bold", 12)
+        # ---------- LEFT COLUMN ----------
+        left_x = 40
+        y = height - 120
+
+        pdf.setFont("Helvetica-Bold", 16)
         pdf.drawString(left_x, y, "System Overview")
-        y -= 18
+        y -= 22
 
-        pdf.setFont("Helvetica", 10)
+        pdf.setFont("Helvetica", 11)
         pdf.drawString(left_x, y, f"Processes: {', '.join(norm['processes'])}")
         y -= 14
 
-        pdf.drawString(left_x, y, f"Resources: {', '.join([f"{r['id']}({r['instances']})" for r in norm['resources']])}")
+        pdf.drawString(left_x, y,
+                    f"Resources: {', '.join([f'{r['id']} ({r['instances']})' for r in norm['resources']])}")
         y -= 14
 
-        req = norm["request_edges"]
-        alloc = norm["allocation_edges"]
         pdf.drawString(left_x, y, f"Request edges: {len(req)}")
         y -= 14
+
         pdf.drawString(left_x, y, f"Allocation edges: {len(alloc)}")
-        y -= 20
+        y -= 26
 
-        # DEADLOCK (multi-instance)
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(left_x, y, "Deadlock Analysis (Multi-Instance)")
-        y -= 16
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(left_x, y, "Deadlock Analysis")
+        y -= 22
 
-        pdf.setFont("Helvetica", 10)
+        pdf.setFont("Helvetica", 11)
         pdf.drawString(left_x, y,
-                       f"Deadlock detected: {'YES' if multi['deadlocked'] else 'NO'}")
+                    f"Deadlock detected: {'YES' if multi['deadlocked'] else 'NO'}")
         y -= 14
 
-        if multi["deadlocked"]:
+        if multi['deadlocked']:
             pdf.drawString(left_x, y,
-                           f"Deadlocked Processes: {', '.join(multi['deadlocked_processes'])}")
-            y -= 14
+                        f"Deadlocked processes: {', '.join(multi['deadlocked_processes'])}")
+            y -= 18
 
-        pdf.drawString(left_x, y,
-                       f"Algorithm: multi-instance-matrix")
-        y -= 20
+        pdf.drawString(left_x, y, "Algorithm: Multi-Instance Matrix")
+        y -= 26
 
-        # CYCLE
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(left_x, y, "Cycle Detection (Graph-Based)")
-        y -= 16
+        # ---------- CYCLE SECTION ----------
+        pdf.setFont("Helvetica-Bold", 16)
+        pdf.drawString(left_x, y, "Graph Cycle Detection")
+        y -= 22
 
-        pdf.setFont("Helvetica", 10)
+        pdf.setFont("Helvetica", 11)
         pdf.drawString(left_x, y, f"Cycle detected: {'YES' if cycle else 'NO'}")
-        y -= 14
+        y -= 16
 
         if cycle:
             cyc_text = " → ".join(cycle)
-            for line in textwrap.wrap(cyc_text, width=80):
+            for line in textwrap.wrap(cyc_text, width=60):
                 pdf.drawString(left_x + 12, y, line)
                 y -= 12
-            y -= 6
 
-        # Edge samples
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(left_x, y, "Edge Samples")
-        y -= 16
-        pdf.setFont("Helvetica", 10)
+        # ---------- RIGHT COLUMN (IMAGE) ----------
+        right_x = width * 0.48
+        img_w = width * 0.45
+        img_h = height * 0.55
 
-        for e in req[:4]:
-            pdf.drawString(left_x + 6, y,
-                           f"Request: {e['from']}→{e['to']} (x{e['amount']})")
-            y -= 12
-        for e in alloc[:4]:
-            pdf.drawString(left_x + 6, y,
-                           f"Alloc:   {e['from']}→{e['to']} (x{e['amount']})")
-            y -= 12
+        pdf.setStrokeColorRGB(0.7, 0.7, 0.7)
+        pdf.rect(right_x - 10, height - img_h - 130, img_w + 20, img_h + 20)
 
-        # PREVIEW IMAGE
-        right_x = width * 0.55
-        preview_w = width - right_x - 48
-        preview_h = height * 0.55
-
-        pdf.setStrokeColorRGB(0.8, 0.8, 0.8)
-        pdf.rect(right_x - 6,
-                 height - 110 - preview_h - 6,
-                 preview_w + 12, preview_h + 12)
-
-        # Draw image centered
         iw, ih = img.size
-        scale = min((preview_w - 20)/iw, (preview_h - 20)/ih, 1.0)
-        iw2, ih2 = int(iw*scale), int(ih*scale)
+        scale = min(img_w / iw, img_h / ih)
+        iw2, ih2 = int(iw * scale), int(ih * scale)
+
         pdf.drawImage(
             ImageReader(img.resize((iw2, ih2))),
-            right_x + (preview_w - iw2)/2,
-            height - 130 - ih2,
-            width=iw2, height=ih2
+            right_x + (img_w - iw2)/2,
+            height - ih2 - 140,
+            width=iw2,
+            height=ih2
         )
 
-        # FOOTER
+        # ---------- FOOTER ----------
         pdf.setFont("Helvetica", 9)
         pdf.setFillColorRGB(0.3, 0.3, 0.3)
-        pdf.drawString(left_x, margin,
-                       "Generated by Resource Allocation Graph Simulator")
+
+        pdf.drawString(40, 20, "Generated by Resource Allocation Graph Simulator")
         pdf.drawRightString(
-            width - left_x,
-            margin,
-            datetime.now().strftime("Report generated: %d %b %Y, %I:%M %p")
+            width - 40, 20,
+            datetime.now().strftime("Generated on %d %b %Y • %I:%M %p")
         )
 
         pdf.showPage()
@@ -458,7 +441,6 @@ def export_report():
             as_attachment=True,
             download_name="system_report.pdf"
         )
-
     except Exception as e:
         app.logger.exception("Export failed")
         return jsonify({"error": str(e)}), 500
