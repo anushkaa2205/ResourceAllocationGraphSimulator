@@ -1,4 +1,3 @@
-// src/pages/Analysis.jsx
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -12,45 +11,68 @@ export default function Analysis() {
 
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  // backend image
   const backendImgB64 = analysis?.backend?.visualization || null;
   const backendImgSrc = backendImgB64
     ? `data:image/png;base64,${backendImgB64}`
     : null;
 
-  /* -----------------------------------------
-     🔄 Regenerate Backend Visualization Button
-  ------------------------------------------- */
-  const handleRegenerateBackend = () => {
-    navigate("/simulator", {
-      state: {
-        regenerateBackend: true,
-        graph,
-        positions: state?.positions || {},
-      },
-    });
+  const instanceDetection = analysis?.local?.instanceDetection;
+  const deadlockedProcesses = instanceDetection?.deadlockedProcesses || [];
+
+  const theme = {
+    bg: "radial-gradient(circle at 50% 0%, #123B86 0%, #071326 50%, #02050A 100%)",
+
+    cardBg: "rgba(16,22,34,0.88)",
+    cardLight: "rgba(255,255,255,0.05)",
+
+    border: "1px solid rgba(90,140,255,0.14)",
+    glow: "0 0 14px rgba(90,140,255,0.35)",
+
+    header: "#FFFFFF",
+    text: "#E1E7EF",
+    muted: "#A3AEC2",
+    accent: "#5CAEFF",
+    green: "#4fe37a",
+    red: "#ff4f4f",
+    yellow: "#f6d860",
   };
 
-  /* -----------------------------------------
-     → Visualization Page Navigation (fixed)
-  ------------------------------------------- */
-  const handleGoToVisualization = () => {
-    navigate("/visualizer", {
-      state: {
-        graph,
-        cycle,
-        positions: state?.positions || {},
-        analysis,
-        backendVisualizationBase64: backendImgB64,
-      },
-    });
+  /* Common Card */
+  const card = {
+    background: theme.cardBg,
+    padding: 24,
+    borderRadius: 14,
+    border: theme.border,
+    boxShadow: theme.glow,
+    marginBottom: 24,
   };
 
-  const handleGoToReport = () => {
-    navigate("/report", { state: { ...state, analysis, graph, cycle } });
+  /* Buttons With Netflix Hover */
+  const buttonBase = {
+    padding: "10px 16px",
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+    background: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
+    color: "#00101F",
+    fontWeight: 800,
+    marginRight: 12,
+    transition: "0.28s cubic-bezier(0.4, 0, 0.2, 1)",
   };
 
-  // formatting helpers
+  const buttonHover = {
+    transform: "translateY(-6px) scale(1.06)",
+    boxShadow: "0 20px 40px rgba(0,0,0,0.45), 0 0 28px rgba(80,140,255,0.45)",
+    filter: "brightness(1.12)",
+  };
+
+  /* Combine cards for left side panels */
+  const leftPanelStyle = {
+    ...card,
+    background: "rgba(16,22,34,0.92)",
+  };
+
+  /* Summary Formatting */
   const formattedResources = graph.resources?.length
     ? graph.resources.map((r) => `${r.id}(${r.instances})`).join(", ")
     : "(none)";
@@ -62,42 +84,84 @@ export default function Analysis() {
         : cycle.join(" → ")
       : "None";
 
-  const instanceDetection = analysis?.local?.instanceDetection;
-  const deadlockedProcesses = instanceDetection?.deadlockedProcesses || [];
-
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(120deg,#181c24,#23283b)",
-        padding: "32px 0",
+        background: theme.bg,
+        padding: "40px 0",
         width: "100vw",
-        overflowX: "hidden",
       }}
     >
       <div
         style={{
           maxWidth: 1200,
           margin: "0 auto",
-          background: "rgba(24,28,36,0.98)",
+          background: theme.cardBg,
           borderRadius: 18,
           padding: 36,
-          width: "95vw",
+          border: theme.border,
+          boxShadow: "0 0 24px rgba(0,0,0,0.6)",
         }}
       >
         {/* TOP BAR */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
-          <button className="btn" onClick={() => navigate("/simulator")}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            marginBottom: 28,
+            justifyContent: "space-between",
+          }}
+        >
+          {/* Left button */}
+          <button
+            style={buttonBase}
+            className="netflix-btn"
+            onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+            onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+            onClick={() => navigate("/simulator")}
+          >
             ← Back to Simulator
           </button>
 
-          <h1 style={{ margin: "0 auto" }}>System Analysis</h1>
+          {/* Title */}
+          <h1
+            style={{
+              margin: 0,
+              color: theme.header,
+              textShadow: "0 0 20px rgba(100,150,255,0.25)",
+            }}
+          >
+            System Analysis
+          </h1>
 
+          {/* Right buttons */}
           <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn" onClick={handleGoToVisualization}>
+            <button
+              className="netflix-btn"
+              style={buttonBase}
+              onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+              onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+              onClick={() =>
+                navigate("/visualizer", {
+                  state: { graph, cycle, analysis, positions: state?.positions },
+                })
+              }
+            >
               Go to Visualization
             </button>
-            <button className="btn" onClick={handleGoToReport}>
+
+            <button
+              className="netflix-btn"
+              style={buttonBase}
+              onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+              onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+              onClick={() =>
+                navigate("/report", {
+                  state: { ...state, analysis, graph, cycle },
+                })
+              }
+            >
               Report
             </button>
           </div>
@@ -111,32 +175,23 @@ export default function Analysis() {
             gap: 32,
           }}
         >
-          {/* ---------------------------------
-             LEFT SIDE CONTENT (UNCHANGED)
-          ----------------------------------- */}
+          {/* LEFT SIDE */}
           <div>
             {/* SUMMARY */}
-            <section
-              style={{
-                background: "rgba(255,255,255,0.03)",
-                borderRadius: 12,
-                padding: 24,
-                marginBottom: 24,
-              }}
-            >
-              <h2>Summary</h2>
+            <section style={leftPanelStyle}>
+              <h2 style={{ marginTop: 0, color: theme.header }}>Summary</h2>
 
               <div>
-                <strong style={{ color: "#8ecae6" }}>Processes</strong>
+                <strong style={{ color: theme.accent }}>Processes</strong>
                 <div>{graph.processes.join(", ") || "(none)"}</div>
               </div>
 
               <div style={{ marginTop: 14 }}>
-                <strong style={{ color: "#8ecae6" }}>Resources</strong>
+                <strong style={{ color: theme.accent }}>Resources</strong>
                 <div>{formattedResources}</div>
               </div>
 
-              {/* MULTI INSTANCE RESULT */}
+              {/* Deadlock */}
               <div
                 style={{
                   padding: 12,
@@ -144,26 +199,26 @@ export default function Analysis() {
                   borderRadius: 8,
                   background: instanceDetection?.deadlocked
                     ? "rgba(255,0,0,0.08)"
-                    : "rgba(0,255,0,0.05)",
+                    : "rgba(0,255,120,0.08)",
                 }}
               >
-                <strong style={{ color: "#8ecae6" }}>
+                <strong style={{ color: theme.accent }}>
                   Deadlock (Multi-Instance Detection)
                 </strong>
                 <div style={{ marginTop: 6 }}>
                   {instanceDetection?.deadlocked ? (
-                    <span style={{ color: "#e63946", fontWeight: "bold" }}>
+                    <span style={{ color: theme.red, fontWeight: 700 }}>
                       YES — Processes: {deadlockedProcesses.join(", ")}
                     </span>
                   ) : (
-                    <span style={{ color: "#38b000", fontWeight: "bold" }}>
+                    <span style={{ color: theme.green, fontWeight: 700 }}>
                       NO
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* GRAPH-BASED CYCLE */}
+              {/* Cycle */}
               <div
                 style={{
                   padding: 12,
@@ -171,10 +226,10 @@ export default function Analysis() {
                   borderRadius: 8,
                   background: cycle.length
                     ? "rgba(255,220,0,0.08)"
-                    : "rgba(255,255,255,0.02)",
+                    : theme.cardLight,
                 }}
               >
-                <strong style={{ color: "#8ecae6" }}>
+                <strong style={{ color: theme.accent }}>
                   Cycle (Graph-Based)
                 </strong>
                 <div style={{ marginTop: 6, whiteSpace: "pre-line" }}>
@@ -183,24 +238,14 @@ export default function Analysis() {
               </div>
             </section>
 
-            {/* MORE LEFT-SECTIONS… (unchanged, keeping your full file) */}
-            {/* ------------------------------------------ */}
             {/* EXPLANATION */}
-            <section
-              style={{
-                background: "rgba(255,255,255,0.025)",
-                padding: 20,
-                borderRadius: 12,
-                marginBottom: 20,
-              }}
-            >
-              <h3>Explanation</h3>
+            <section style={leftPanelStyle}>
+              <h3 style={{ color: theme.header }}>Explanation</h3>
               <div
                 style={{
-                  background: "rgba(255,255,255,0.04)",
+                  background: theme.cardLight,
                   padding: 14,
                   borderRadius: 8,
-                  color: "#eee",
                 }}
               >
                 {analysis?.explanation?.explanation ||
@@ -209,15 +254,8 @@ export default function Analysis() {
             </section>
 
             {/* FIX SUGGESTIONS */}
-            <section
-              style={{
-                background: "rgba(255,255,255,0.025)",
-                padding: 20,
-                borderRadius: 12,
-                marginBottom: 20,
-              }}
-            >
-              <h3>Fix Suggestions</h3>
+            <section style={leftPanelStyle}>
+              <h3 style={{ color: theme.header }}>Fix Suggestions</h3>
               {analysis?.fixes?.length ? (
                 <ul>
                   {analysis.fixes.map((f, i) => (
@@ -225,134 +263,130 @@ export default function Analysis() {
                   ))}
                 </ul>
               ) : (
-                <p style={{ color: "#aaa" }}>No fix suggestions.</p>
+                <p style={{ color: theme.muted }}>No fix suggestions.</p>
               )}
             </section>
 
             {/* SAFETY */}
-            <section
-              style={{
-                background: "rgba(255,255,255,0.025)",
-                padding: 20,
-                borderRadius: 12,
-                marginBottom: 20,
-              }}
-            >
-              <h3>Safety / Banker's Info</h3>
-              <div>{analysis?.safety?.message || "(none)"}</div>
+            <section style={leftPanelStyle}>
+              <h3 style={{ color: theme.header }}>Safety / Banker's Info</h3>
+              <div style={{ color: theme.text }}>
+                {analysis?.safety?.message || "(none)"}
+              </div>
             </section>
 
             {/* METRICS */}
-            <section
-              style={{
-                background: "rgba(255,255,255,0.025)",
-                padding: 20,
-                borderRadius: 12,
-              }}
-            >
-              <h3>Metrics</h3>
+            <section style={leftPanelStyle}>
+              <h3 style={{ color: theme.header }}>Metrics</h3>
               <div>Total Edges: {analysis?.metrics?.totalEdges}</div>
             </section>
           </div>
 
-          {/* ---------------------------------------------
-                  RIGHT SIDE VISUALIZATION (MAIN FIXES)
-          ---------------------------------------------- */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              borderRadius: 14,
-              padding: 24,
-            }}
-          >
-            <h2 style={{ marginTop: 0 }}>Visualization</h2>
+          {/* RIGHT SIDE — VISUALIZATION SECTION */}
+          <div style={leftPanelStyle}>
+            <h2 style={{ marginTop: 0, color: theme.header }}>
+              Visualization
+            </h2>
 
             {backendImgSrc ? (
               <>
-                {/* NEON GLOW PREVIEW */}
                 <img
                   src={backendImgSrc}
                   alt="backend-preview"
                   style={{
-                    maxWidth: "100%",
-                    borderRadius: 10,
+                    width: "100%",
+                    borderRadius: 12,
                     marginBottom: 16,
-                    boxShadow:
-                      "0 0 18px #8b5cf6, 0 0 40px rgba(139,92,246,0.45)",
+                    boxShadow: "0 0 25px #5CAEFF, 0 0 60px rgba(80,140,255,0.45)",
                   }}
                 />
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <button className="btn primary" onClick={handleRegenerateBackend}>
-                    🔄 Regenerate Backend Image
-                  </button>
+                <button
+                  className="netflix-btn"
+                  style={{ ...buttonBase, width: "100%", marginBottom: 10 }}
+                  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+                  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+                  onClick={() => navigate("/simulator", { state })}
+                >
+                  🔄 Regenerate Backend Image
+                </button>
 
-                  <a
-                    className="btn"
-                    href={backendImgSrc}
-                    download="backend_visualization.png"
-                  >
-                    ⬇ Download PNG
-                  </a>
+                <a
+                  className="netflix-btn"
+                  style={{ ...buttonBase, display: "block", textAlign: "center", marginBottom: 10 }}
+                  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+                  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+                  href={backendImgSrc}
+                  download="backend_visualization.png"
+                >
+                  ⬇ Download PNG
+                </a>
 
-                  <button className="btn" onClick={() => setPreviewOpen(true)}>
-                    Open Fullscreen Preview
-                  </button>
-                </div>
+                <button
+                  className="netflix-btn"
+                  style={{ ...buttonBase, width: "100%" }}
+                  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+                  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+                  onClick={() => setPreviewOpen(true)}
+                >
+                  Open Fullscreen Preview
+                </button>
               </>
             ) : (
-              <p style={{ color: "#aaa", fontStyle: "italic" }}>
+              <p style={{ color: theme.muted }}>
                 No backend visualization available.
               </p>
             )}
           </div>
         </div>
-      </div>
 
-      {/* ------------------ FULLSCREEN MODAL ------------------ */}
-      {previewOpen && backendImgSrc && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 3000,
-          }}
-        >
+        {/* MODAL PREVIEW */}
+        {previewOpen && backendImgSrc && (
           <div
             style={{
-              background: "#11141d",
-              padding: 20,
-              borderRadius: 16,
-              maxWidth: "90vw",
-              maxHeight: "90vh",
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.75)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 5000,
             }}
           >
-            <button
-              className="btn"
-              onClick={() => setPreviewOpen(false)}
-              style={{ marginBottom: 10 }}
-            >
-              Close
-            </button>
-
-            <img
-              src={backendImgSrc}
-              alt="big-preview"
+            <div
               style={{
-                maxWidth: "85vw",
-                maxHeight: "80vh",
-                borderRadius: 12,
-                boxShadow:
-                  "0 0 25px #8b5cf6, 0 0 60px rgba(139,92,246,0.45)",
+                background: theme.cardBg,
+                padding: 20,
+                borderRadius: 18,
+                maxWidth: "90vw",
+                maxHeight: "90vh",
+                border: theme.border,
               }}
-            />
+            >
+              <button
+                className="netflix-btn"
+                style={{ ...buttonBase, marginBottom: 12 }}
+                onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+                onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+                onClick={() => setPreviewOpen(false)}
+              >
+                Close
+              </button>
+
+              <img
+                src={backendImgSrc}
+                alt="preview-large"
+                style={{
+                  width: "100%",
+                  maxHeight: "80vh",
+                  borderRadius: 12,
+                  boxShadow: "0 0 35px #5CAEFF, 0 0 90px rgba(80,140,255,0.55)",
+                }}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

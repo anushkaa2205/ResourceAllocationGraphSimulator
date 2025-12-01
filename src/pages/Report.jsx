@@ -1,4 +1,3 @@
-// src/pages/Report.jsx
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -38,8 +37,26 @@ export default function Report() {
 
   const [msg, setMsg] = useState("");
 
-  /* ------------------ FORMATTERS ------------------ */
+  /* ========= THEME ========= */
+  const theme = {
+    bg: "radial-gradient(circle at 50% 0%, #123B86 0%, #071326 50%, #02050A 100%)",
 
+    cardBg: "rgba(16,22,34,0.88)",
+    cardLight: "rgba(255,255,255,0.06)",
+
+    border: "1px solid rgba(80,140,255,0.14)",
+    shadow: "0 0 18px rgba(90,140,255,0.28)",
+
+    header: "#FFFFFF",
+    text: "#E1E7EF",
+    muted: "#A3AEC2",
+    accent: "#5CAEFF",
+    red: "#ff4f4f",
+    green: "#4fe37a",
+    yellow: "#f6d860"
+  };
+
+  /* ========= FORMATTED VALUES ========= */
   const formattedResources = graph?.resources?.length
     ? graph.resources.map(r => `${r.id}(${r.instances})`).join(", ")
     : "(none)";
@@ -56,20 +73,17 @@ export default function Report() {
   const algoCycle = analysis?.backend?.cycle_algorithm_used || "graph-cycle";
 
   const requestEdges =
-    graph?.edges
-      ?.filter(e => e.type === "request")
+    graph?.edges?.filter(e => e.type === "request")
       ?.map(e => `${e.from} → ${e.to}  (x${e.amount})`) || [];
 
   const allocationEdges =
-    graph?.edges
-      ?.filter(e => e.type === "allocation")
+    graph?.edges?.filter(e => e.type === "allocation")
       ?.map(e => `${e.from} → ${e.to}  (x${e.amount})`) || [];
 
-  /* ------------------ PAYLOAD ------------------ */
-
+  /* ========= PAYLOAD BUILDER ========= */
   const makePayload = (extra = {}) => ({
     processes: graph?.processes || [],
-    resources: graph?.resources || [], // already in object format
+    resources: graph?.resources || [],
     request_edges: graph?.edges
       ?.filter(e => e.type === "request")
       ?.map(e => ({ from: e.from, to: e.to, amount: e.amount })) || [],
@@ -84,8 +98,7 @@ export default function Report() {
   async function exportPDF() {
     try {
       setMsg("Generating PDF...");
-      const payload = makePayload({ format: "pdf" });
-      await postAndDownload(`${BACKEND}/export`, payload, "system_report.pdf");
+      await postAndDownload(`${BACKEND}/export`, makePayload({ format: "pdf" }), "system_report.pdf");
       setMsg("PDF downloaded");
     } catch (e) {
       setMsg("Error: " + e.message);
@@ -95,172 +108,216 @@ export default function Report() {
   async function exportPNG() {
     try {
       setMsg("Generating PNG...");
-      const payload = makePayload({ format: "png" });
-      await postAndDownload(`${BACKEND}/export`, payload, "visualization.png");
+      await postAndDownload(`${BACKEND}/export`, makePayload({ format: "png" }), "visualization.png");
       setMsg("PNG downloaded");
     } catch (e) {
       setMsg("Error: " + e.message);
     }
   }
 
-  /* ------------------ UI ------------------ */
+  /* ========= REUSABLE CARD STYLE ========= */
+  const card = {
+    background: theme.cardBg,
+    padding: 22,
+    borderRadius: 14,
+    border: theme.border,
+    boxShadow: theme.shadow,
+    marginTop: 28
+  };
+
+  const sectionTitle = {
+    margin: 0,
+    color: theme.header,
+    fontSize: 20,
+    fontWeight: 700
+  };
+
+  const buttonBase = {
+    padding: "10px 16px",
+    borderRadius: 12,
+    border: "none",
+    cursor: "pointer",
+    background: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
+    color: "#00101F",
+    fontWeight: 800,
+    marginRight: 12,
+    transition: "0.25s ease",
+  };
+
+  const buttonHover = {
+    transform: "translateY(-3px) scale(1.05)",
+    boxShadow: theme.shadow
+  };
 
   return (
-    <div style={{ padding: 30, color: "#e5e5e5" }}>
-      <h1 style={{ marginBottom: 10 }}>System Report</h1>
-      <p style={{ opacity: 0.8 }}>
+    <div style={{
+      padding: "40px 28px",
+      maxWidth: 1100,
+      margin: "0 auto",
+      color: theme.text,
+      background: theme.bg,
+      borderRadius: 20,
+    }}>
+
+      {/* Heading */}
+      <h1 style={{
+        margin: "0 0 8px",
+        fontSize: 32,
+        color: theme.header,
+        fontWeight: 800,
+        textShadow: "0 0 20px rgba(100,150,255,0.25)"
+      }}>
+        System Report
+      </h1>
+
+      <p style={{ opacity: 0.9, marginBottom: 20, color: theme.muted }}>
         Export a detailed PDF or PNG report for your deadlock analysis.
       </p>
 
+      {/* Navigation Buttons */}
       <div style={{ marginBottom: 20 }}>
-        <button onClick={() => nav("/simulator")} className="btn">
+        <button
+        className="netflix-btn"
+
+          onClick={() => nav("/simulator")}
+          style={buttonBase}
+          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+        >
           ← Back to Simulator
         </button>
+
         <button
+        className="netflix-btn"
+
           onClick={() => nav("/analysis", { state })}
-          className="btn"
-          style={{ marginLeft: 12 }}
+          style={buttonBase}
+          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
         >
           Back to Analysis
         </button>
       </div>
 
-      {/* ------------------ EXPORT BUTTONS ------------------ */}
+      {/* Export Actions */}
       <div style={{ marginTop: 12, marginBottom: 20 }}>
-        <button onClick={exportPDF} className="btn">
+        <button
+        className="netflix-btn"
+
+          onClick={exportPDF}
+          style={buttonBase}
+          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+        >
           Download PDF
         </button>
 
         <button
           onClick={exportPNG}
-          className="btn"
-          style={{ marginLeft: 10 }}
+          style={buttonBase}
+          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
         >
           Download PNG
         </button>
-        <button
-  className="btn"
-  style={{ marginLeft: 10 }}
-  onClick={() => {
-    const json = JSON.stringify(analysis, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "analysis.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  }}
->
-  Download Full JSON
-</button>
 
+        <button
+        className="netflix-btn"
+
+          style={buttonBase}
+          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+          onClick={() => {
+            const json = JSON.stringify(analysis, null, 2);
+            const blob = new Blob([json], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "analysis.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          Download Full JSON
+        </button>
       </div>
 
+      {/* Status Message */}
       {msg && (
-        <div style={{ marginTop: 16, color: "#8be6ff" }}>
+        <div style={{ marginTop: 16, color: theme.accent }}>
           {msg}
         </div>
       )}
 
-      {/* ------------------ SUMMARY PANEL ------------------ */}
-      <div
-        style={{
-          marginTop: 30,
-          padding: 20,
-          borderRadius: 12,
-          background: "rgba(255,255,255,0.04)",
-          boxShadow: "0 0 10px rgba(0,0,0,0.3)"
-        }}
-      >
-        <h2 style={{ marginTop: 0 }}>Summary</h2>
+      {/* Summary */}
+      <div style={card}>
+        <h2 style={sectionTitle}>Summary</h2>
 
         <div style={{ marginTop: 14 }}>
-          <strong style={{ color: "#8ecae6" }}>Processes:</strong>{" "}
+          <strong style={{ color: theme.accent }}>Processes:</strong>{" "}
           {graph?.processes?.join(", ") || "(none)"}
         </div>
 
         <div style={{ marginTop: 6 }}>
-          <strong style={{ color: "#8ecae6" }}>Resources:</strong>{" "}
+          <strong style={{ color: theme.accent }}>Resources:</strong>{" "}
           {formattedResources}
         </div>
 
         <div style={{ marginTop: 6 }}>
-          <strong style={{ color: "#8ecae6" }}>Total Edges:</strong>{" "}
+          <strong style={{ color: theme.accent }}>Total Edges:</strong>{" "}
           {graph?.edges?.length ?? 0}
         </div>
       </div>
 
-      {/* ------------------ DEADLOCK BLOCK ------------------ */}
-      <div
-        style={{
-          marginTop: 24,
-          padding: 20,
-          borderRadius: 12,
-          background: multiDeadlock
-            ? "rgba(255,0,0,0.08)"
-            : "rgba(0,255,0,0.05)",
-          border: "1px solid rgba(255,255,255,0.08)"
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Deadlock (Multi-Instance Detection)</h3>
+      {/* Deadlock Panel */}
+      <div style={{
+        ...card,
+        background: multiDeadlock ? "rgba(255,0,0,0.08)" : "rgba(0,255,120,0.06)"
+      }}>
+        <h3 style={{ ...sectionTitle, fontSize: 18 }}>
+          Deadlock (Multi-Instance Detection)
+        </h3>
 
         {multiDeadlock ? (
-          <p style={{ color: "#ff4f4f", fontWeight: 700 }}>
-            YES — Deadlocked Processes:{" "}
-            {deadlockedProcesses.join(", ")}
+          <p style={{ color: theme.red, fontWeight: 700 }}>
+            YES — Deadlocked Processes: {deadlockedProcesses.join(", ")}
           </p>
         ) : (
-          <p style={{ color: "#38b000", fontWeight: 700 }}>NO</p>
+          <p style={{ color: theme.green, fontWeight: 700 }}>NO</p>
         )}
 
-        <div style={{ color: "#9aa6b2", marginTop: 6 }}>
-          Algorithm: <strong style={{ color: "#8ecae6" }}>{algoMatrix}</strong>
+        <div style={{ color: theme.muted, marginTop: 6 }}>
+          Algorithm: <strong style={{ color: theme.accent }}>{algoMatrix}</strong>
         </div>
       </div>
 
-      {/* ------------------ CYCLE BLOCK ------------------ */}
-      <div
-        style={{
-          marginTop: 24,
-          padding: 20,
-          borderRadius: 12,
-          background: cycle.length
-            ? "rgba(255,220,0,0.06)"
-            : "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.08)"
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Cycle Detection (Graph-Based)</h3>
+      {/* Cycle Detection */}
+      <div style={card}>
+        <h3 style={{ ...sectionTitle, fontSize: 18 }}>
+          Cycle Detection (Graph-Based)
+        </h3>
+
         <pre
           style={{
             whiteSpace: "pre-line",
             margin: 0,
-            color: cycle.length ? "#f9c74f" : "#aaa"
+            color: cycle.length ? theme.yellow : theme.muted
           }}
         >
           {formattedCycle}
         </pre>
 
-        <div style={{ color: "#9aa6b2", marginTop: 6 }}>
-          Algorithm: <strong style={{ color: "#8ecae6" }}>{algoCycle}</strong>
+        <div style={{ color: theme.muted, marginTop: 6 }}>
+          Algorithm: <strong style={{ color: theme.accent }}>{algoCycle}</strong>
         </div>
       </div>
 
-      {/* ------------------ EDGE LISTS ------------------ */}
-      <div
-        style={{
-          marginTop: 30,
-          padding: 20,
-          borderRadius: 12,
-          background: "rgba(255,255,255,0.04)",
-          boxShadow: "0 0 10px rgba(0,0,0,0.3)"
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Edges</h3>
+      {/* Edge Lists */}
+      <div style={card}>
+        <h3 style={{ ...sectionTitle, fontSize: 18 }}>Edges</h3>
 
         <div style={{ marginTop: 10 }}>
-          <strong style={{ color: "#8ecae6" }}>Request Edges:</strong>
+          <strong style={{ color: theme.accent }}>Request Edges:</strong>
           <ul>
             {requestEdges.length ? (
               requestEdges.map((e, i) => <li key={i}>{e}</li>)
@@ -271,7 +328,7 @@ export default function Report() {
         </div>
 
         <div style={{ marginTop: 10 }}>
-          <strong style={{ color: "#8ecae6" }}>Allocation Edges:</strong>
+          <strong style={{ color: theme.accent }}>Allocation Edges:</strong>
           <ul>
             {allocationEdges.length ? (
               allocationEdges.map((e, i) => <li key={i}>{e}</li>)
@@ -282,18 +339,19 @@ export default function Report() {
         </div>
       </div>
 
-      {/* ------------------ RAW JSON ------------------ */}
-      <h3 style={{ marginTop: 30 }}>Raw Analysis Object</h3>
+      {/* Raw JSON */}
+      <h3 style={{ marginTop: 30, color: theme.header }}>Raw Analysis Object</h3>
       <pre
         style={{
-          background: "rgba(255,255,255,0.06)",
+          background: theme.cardLight,
           padding: 20,
-          borderRadius: 8,
-          color: "#ddd",
-          overflowX: "auto"
+          borderRadius: 12,
+          color: theme.text,
+          overflowX: "auto",
+          border: theme.border
         }}
       >
-{JSON.stringify(analysis, null, 2)}
+        {JSON.stringify(analysis, null, 2)}
       </pre>
     </div>
   );

@@ -592,3 +592,16 @@ body {
 .btn.ghost:active {
   transform: translateY(1px) !important;
 }
+.netflix-btn {
+  transition: 
+    transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.28s ease;
+}
+
+.netflix-btn:hover {
+  transform: translateY(-6px) scale(1.06);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45),
+              0 0 28px rgba(80, 140, 255, 0.45);
+  filter: brightness(1.12);
+}
