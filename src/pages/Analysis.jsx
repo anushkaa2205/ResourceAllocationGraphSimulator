@@ -138,18 +138,25 @@ export default function Analysis() {
           {/* Right buttons */}
           <div style={{ display: "flex", gap: 10 }}>
             <button
-              className="netflix-btn"
-              style={buttonBase}
-              onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-              onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
-              onClick={() =>
-                navigate("/visualizer", {
-                  state: { graph, cycle, analysis, positions: state?.positions },
-                })
-              }
-            >
-              Go to Visualization
-            </button>
+  className="netflix-btn"
+  style={buttonBase}
+  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
+  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+  onClick={() =>
+    navigate("/visualizer", {
+      state: {
+        graph,
+        cycle,
+        analysis,
+        positions: state?.positions || {},
+        backendVisualizationBase64: backendImgB64,
+      },
+    })
+  }
+>
+  Go to Visualization
+</button>
+
 
             <button
               className="netflix-btn"
