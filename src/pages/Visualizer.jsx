@@ -1,16 +1,26 @@
 import React, { useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-/*
-FINAL VISUALIZER – CLEAN & FIXED
-✔ Edges always visible
-✔ Cycle edges red only
-✔ Safe edges blue
-✔ Node pop animation
-✔ Token traversal
-✔ Netflix-hover theme
-*/
+/* ---------------- THEME ---------------- */
+const theme = {
+  bg: "radial-gradient(circle at 50% 0%, #123B86 0%, #071326 50%, #02050A 100%)",
+  cardBg: "rgba(16,22,34,0.92)",
+  border: "1px solid rgba(80,140,255,0.14)",
+  nodeProcess: "#3b82f6",
+  nodeResource: "#10b981",
+  nodeDead: "#ff416c",
+  edgeSafe: "#416cff",
+  edgeCycle: "#ff416c",
+  text: "#E1E7EF",
+  muted: "#A3AEC2",
+  accent: "#5CAEFF",
+  accent2: "#78A7FF",
+  buttonText: "#00101F",
+  buttonBg: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
+  shadow: "0 0 24px rgba(0,0,0,0.6)",
+};
 
+/* ---------------- ICONS ---------------- */
 const ICONS = {
   ok: "✔",
   warn: "⚠",
@@ -20,16 +30,13 @@ const ICONS = {
 /* ---------------- SAFE PARSE ---------------- */
 function safeParseIncoming(locationState) {
   const incoming = locationState || {};
-
   const graph =
     incoming.graph && typeof incoming.graph === "object"
       ? incoming.graph
       : { processes: [], resources: [], edges: [] };
-
   graph.processes ||= [];
   graph.resources ||= [];
   graph.edges ||= [];
-
   const request_edges =
     incoming.request_edges ||
     graph.edges
@@ -39,7 +46,6 @@ function safeParseIncoming(locationState) {
         to: e.to,
         amount: e.amount || 1,
       }));
-
   const allocation_edges =
     incoming.allocation_edges ||
     graph.edges
@@ -49,7 +55,6 @@ function safeParseIncoming(locationState) {
         to: e.to,
         amount: e.amount || 1,
       }));
-
   return {
     graph,
     request_edges,
@@ -78,8 +83,23 @@ export default function Visualizer() {
     cycle,
   } = safeParseIncoming(location.state || {});
 
-  // 🔥 Correct placement — INSIDE COMPONENT
   const analysis = location.state?.analysis || {};
+
+  // Detect deadlock
+  const isDeadlock = cycle.length > 0;
+
+  // Enhanced theme for deadlock
+  const deadlockTheme = {
+    ...theme,
+    bg: isDeadlock
+      ? "radial-gradient(circle at 50% 0%, #6a040f 0%, #370617 60%, #03010a 100%)"
+      : theme.bg,
+    cardBg: isDeadlock ? "rgba(90,10,30,0.92)" : theme.cardBg,
+    border: isDeadlock ? "1px solid #ff416c" : theme.border,
+    accent: isDeadlock ? "#ff416c" : theme.accent,
+    accent2: isDeadlock ? "#ff6a6a" : theme.accent2,
+    shadow: isDeadlock ? "0 0 32px #ff416c88" : theme.shadow,
+  };
 
   /* ---------------- BUTTON STYLES ---------------- */
   const buttonBase = {
@@ -87,16 +107,19 @@ export default function Visualizer() {
     borderRadius: 12,
     border: "none",
     cursor: "pointer",
-    background: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
-    color: "#00101F",
+    background: theme.buttonBg,
+    color: theme.buttonText,
     fontWeight: 800,
     transition: "0.25s",
+    boxShadow: "0 4px 16px rgba(80,140,255,0.15)",
+    outline: "none",
   };
 
   const buttonHover = {
     transform: "translateY(-6px) scale(1.06)",
     boxShadow:
       "0 20px 40px rgba(0,0,0,0.45), 0 0 28px rgba(80,140,255,0.45)",
+    filter: "brightness(1.1)",
   };
 
   /* ---------------- NODES + EDGES ---------------- */
@@ -126,7 +149,6 @@ export default function Visualizer() {
 
   /* ---------------- COORDINATES ---------------- */
   const coords = {};
-
   const procs = graph.processes;
   const ress = graph.resources;
   const gap = 900 / Math.max(procs.length, ress.length, 1);
@@ -146,6 +168,8 @@ export default function Visualizer() {
   const tokenRef = useRef(null);
 
   const [busy, setBusy] = useState(false);
+  const [hoveredNode, setHoveredNode] = useState(null);
+  const [hoveredEdge, setHoveredEdge] = useState(null);
 
   function registerNodeRef(id, el) {
     if (el) nodeRefs.current[id] = el;
@@ -174,32 +198,63 @@ export default function Visualizer() {
     Object.values(edgeRefs.current).forEach((el) => {
       el.style.opacity = 1;
     });
-
     Object.values(nodeRefs.current).forEach((el) =>
       el?.classList.remove("pulse-node", "node-pop")
     );
-
     if (tokenRef.current) tokenRef.current.style.opacity = 0;
   }
 
+  // Animation state
+  const [animationStep, setAnimationStep] = useState(0);
+
   /* ---------------- ANIMATION ---------------- */
+  // Animate full deadlock cycle as a "video"
   async function animate() {
     if (busy) return;
     setBusy(true);
-
     resetSVG();
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const ordered = [...nodes];
+    const orderedNodes = [...nodes];
 
-    // Pop nodes
-    for (let n of ordered) {
+    // Pop nodes one by one
+    for (let n of orderedNodes) {
       nodeRefs.current[n.id]?.classList.add("node-pop");
-      await sleep(120);
+      await sleep(180); // Slowed down node pop
     }
 
-    // Pulse deadlock cycle
-    cycle.forEach((cid) => nodeRefs.current[cid]?.classList.add("pulse-node"));
+    // Animate token moving along deadlock cycle edges
+    for (let i = 0; i < cycle.length; i++) {
+      const from = cycle[i];
+      const to = cycle[(i + 1) % cycle.length];
+      const A = coords[from];
+      const B = coords[to];
+
+      // Show token at start
+      if (tokenRef.current) {
+        tokenRef.current.style.opacity = 1;
+        tokenRef.current.setAttribute("cx", A.x);
+        tokenRef.current.setAttribute("cy", A.y);
+      }
+
+      // Animate token moving (slower, more visible)
+      for (let t = 0; t <= 1; t += 0.02) {
+        const x = A.x + (B.x - A.x) * t;
+        const y = A.y + (B.y - A.y) * t;
+        if (tokenRef.current) {
+          tokenRef.current.setAttribute("cx", x);
+          tokenRef.current.setAttribute("cy", y);
+        }
+        await sleep(30); // Slower movement
+      }
+
+      // Pulse node at arrival
+      nodeRefs.current[to]?.classList.add("pulse-node");
+      await sleep(300); // Slower pulse
+    }
+
+    // Hide token
+    if (tokenRef.current) tokenRef.current.style.opacity = 0;
 
     setBusy(false);
   }
@@ -249,13 +304,17 @@ export default function Visualizer() {
           >
             {busy ? "Animating…" : "Animate Deadlock"}
           </button>
-
           <div style={{ flex: 1 }} />
-
           {/* Back to Analysis */}
           <button
             className="netflix-btn"
             style={buttonBase}
+            onMouseOver={(e) =>
+              Object.assign(e.currentTarget.style, buttonHover)
+            }
+            onMouseOut={(e) =>
+              Object.assign(e.currentTarget.style, buttonBase)
+            }
             onClick={() =>
               nav("/analysis", {
                 state: { graph, cycle, analysis },
@@ -264,20 +323,30 @@ export default function Visualizer() {
           >
             Back to Analysis
           </button>
-
           {/* Back to Simulator */}
           <button
             className="netflix-btn"
             style={buttonBase}
+            onMouseOver={(e) =>
+              Object.assign(e.currentTarget.style, buttonHover)
+            }
+            onMouseOut={(e) =>
+              Object.assign(e.currentTarget.style, buttonBase)
+            }
             onClick={() => nav("/simulator")}
           >
             Back to Simulator
           </button>
-
           {/* Go to Report */}
           <button
             className="netflix-btn"
             style={buttonBase}
+            onMouseOver={(e) =>
+              Object.assign(e.currentTarget.style, buttonHover)
+            }
+            onMouseOut={(e) =>
+              Object.assign(e.currentTarget.style, buttonBase)
+            }
             onClick={() =>
               nav("/report", {
                 state: { graph, analysis, cycle, positions },
@@ -287,11 +356,39 @@ export default function Visualizer() {
             Go to Report
           </button>
         </div>
-
         {/* ---------------- MAIN PANEL ---------------- */}
         <div style={{ display: "flex", gap: 14 }}>
           {/* SVG PANEL */}
           <div style={{ flex: 1, background: "#0f1722", padding: 12 }}>
+            {/* Animation Explanation */}
+            <div style={{
+              color: "#E1E7EF",
+              marginBottom: 16,
+              fontSize: 17,
+              background: "rgba(90,140,255,0.08)",
+              borderRadius: 8,
+              padding: "12px 18px",
+              border: "1px solid #416cff22"
+            }}>
+              <b>Animation Steps:</b>
+              <ol style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                <li>
+                  <span style={{ color: "#5CAEFF" }}>Nodes pop in</span> one by one to show all processes and resources.
+                </li>
+                <li>
+                  <span style={{ color: "#ffb86b" }}>A glowing token</span> travels along the edges of the detected deadlock cycle.
+                </li>
+                <li>
+                  <span style={{ color: "#ff416c" }}>Nodes pulse</span> as the token arrives, highlighting the deadlock path.
+                </li>
+                <li>
+                  <span style={{ color: "#ff416c" }}>Red edges</span> indicate the cycle causing the deadlock.
+                </li>
+              </ol>
+              <div style={{ marginTop: 8, color: "#A3AEC2", fontSize: 15 }}>
+                This animation visually demonstrates how processes and resources interact, and how a deadlock forms in the system.
+              </div>
+            </div>
             <svg
               ref={svgRef}
               width="100%"
@@ -313,12 +410,11 @@ export default function Visualizer() {
                   <path d="M0 0 L10 5 L0 10 Z" fill="#8be9fd" />
                 </marker>
               </defs>
-
               {/* EDGES */}
               {edges.map((e, i) => {
                 const A = coords[e.from];
                 const B = coords[e.to];
-
+                const isHovered = hoveredEdge === edgeKey(e, i);
                 return (
                   <g key={i}>
                     <line
@@ -327,38 +423,64 @@ export default function Visualizer() {
                       y1={A.y}
                       x2={B.x}
                       y2={B.y}
-                      stroke={isCycleEdge(e) ? "#ff416c" : "#416cff"}
-                      strokeWidth={isCycleEdge(e) ? 6 : 3}
+                      stroke={
+                        isCycleEdge(e)
+                          ? theme.edgeCycle
+                          : theme.edgeSafe
+                      }
+                      strokeWidth={isCycleEdge(e) ? 6 : isHovered ? 6 : 3}
                       strokeDasharray={
                         e.etype === "request" ? "6 6" : "none"
                       }
                       markerEnd="url(#arrow)"
+                      style={{
+                        transition: "stroke-width 0.2s, stroke 0.2s",
+                        opacity: isHovered ? 0.85 : 1,
+                        cursor: "pointer",
+                      }}
+                      onMouseOver={() => setHoveredEdge(edgeKey(e, i))}
+                      onMouseOut={() => setHoveredEdge(null)}
                     />
                   </g>
                 );
               })}
-
               {/* TOKEN */}
               <circle
                 ref={tokenRef}
-                r="7"
+                r="18" // Larger token for visibility
                 fill="#ffb86b"
-                style={{ opacity: 0 }}
+                stroke="#ff416c"
+                strokeWidth="4"
+                style={{
+                  opacity: 0,
+                  transition: "opacity 0.3s",
+                  filter: "drop-shadow(0 0 32px #ffb86b88)",
+                }}
               />
-
               {/* NODES */}
               {nodes.map((n) => {
                 const { x, y } = coords[n.id];
                 const isDead = deadNodes.has(n.id);
-
+                const isHovered = hoveredNode === n.id;
                 const fill = isDead
-                  ? "#ff416c"
+                  ? theme.nodeDead
                   : n.ntype === "process"
-                  ? "#3b82f6"
-                  : "#10b981";
-
+                  ? theme.nodeProcess
+                  : theme.nodeResource;
                 return (
-                  <g key={n.id} transform={`translate(${x}, ${y})`}>
+                  <g
+                    key={n.id}
+                    transform={`translate(${x}, ${y})`}
+                    style={{
+                      cursor: "pointer",
+                      filter: isHovered
+                        ? "drop-shadow(0 0 12px #5CAEFF)"
+                        : "none",
+                      transition: "filter 0.2s",
+                    }}
+                    onMouseOver={() => setHoveredNode(n.id)}
+                    onMouseOut={() => setHoveredNode(null)}
+                  >
                     {n.ntype === "resource" ? (
                       <rect
                         ref={(el) => registerNodeRef(n.id, el)}
@@ -370,6 +492,12 @@ export default function Visualizer() {
                         fill={fill}
                         stroke="#0b1220"
                         strokeWidth="2"
+                        style={{
+                          transition: "fill 0.2s, box-shadow 0.2s",
+                          boxShadow: isHovered
+                            ? "0 0 18px #5CAEFF88"
+                            : "none",
+                        }}
                       />
                     ) : (
                       <circle
@@ -378,24 +506,32 @@ export default function Visualizer() {
                         fill={fill}
                         stroke="#0b1220"
                         strokeWidth="2"
+                        style={{
+                          transition: "fill 0.2s, box-shadow 0.2s",
+                          boxShadow: isHovered
+                            ? "0 0 18px #5CAEFF88"
+                            : "none",
+                        }}
                       />
                     )}
-
                     <text
                       x={0}
                       y={5}
                       textAnchor="middle"
                       fill="#fff"
                       fontWeight={700}
+                      style={{
+                        fontSize: isHovered ? 22 : 18,
+                        transition: "font-size 0.2s",
+                      }}
                     >
                       {n.id}
                     </text>
-
                     {/* Status Icon */}
                     <g transform="translate(18,-28)">
                       <circle
                         r={12}
-                        fill={isDead ? "#ff416c" : "#10b981"}
+                        fill={isDead ? theme.nodeDead : theme.nodeResource}
                         stroke="#111"
                       />
                       <text
@@ -413,18 +549,17 @@ export default function Visualizer() {
               })}
             </svg>
           </div>
-
           {/* RIGHT PANEL */}
           <div style={{ width: 360 }}>
             <div
               style={{
-                background: "#0b1220",
+                background: isDeadlock ? "#6a040f" : "#0b1220",
                 padding: 12,
                 borderRadius: 10,
+                transition: "background 0.5s",
               }}
             >
-              <h4 style={{ color: "#E1E7EF" }}>Backend Preview</h4>
-
+              <h4 style={{ color: deadlockTheme.text }}>Backend Preview</h4>
               {backendVisualizationBase64 ? (
                 <img
                   src={`data:image/png;base64,${backendVisualizationBase64}`}
@@ -432,37 +567,33 @@ export default function Visualizer() {
                   style={{ width: "100%", borderRadius: 6 }}
                 />
               ) : (
-                <p style={{ color: "#A3AEC2" }}>No backend preview</p>
+                <p style={{ color: theme.muted }}>No backend preview</p>
               )}
-
-              <p style={{ color: "#E1E7EF" }}>
-                <b>Deadlock:</b> {cycle.length > 0 ? "Yes" : "No"}
+              <p style={{ color: isDeadlock ? "#ff416c" : deadlockTheme.text }}>
+                <b>Deadlock:</b> {isDeadlock ? "Yes" : "No"}
               </p>
-
-              {cycle.length > 0 && (
-                <p style={{ color: "#E1E7EF" }}>
+              {isDeadlock && (
+                <p style={{ color: "#ff416c" }}>
                   <b>Cycle:</b> {cycle.join(" → ")}
                 </p>
               )}
             </div>
           </div>
         </div>
-
         {/* ---------- ANIMATION STYLE ---------- */}
         <style>{`
           .node-pop {
-            transform: scale(1.1);
-            transition: transform 350ms ease;
+            transform: scale(1.15);
+            transition: transform 350ms cubic-bezier(.68,-0.55,.27,1.55);
+            filter: drop-shadow(0 0 12px #5CAEFF);
           }
-
           @keyframes pulse {
             0% { filter: drop-shadow(0 0 0 rgba(255,65,108,0)); }
-            50% { filter: drop-shadow(0 0 12px rgba(255,65,108,1)); transform: scale(1.05); }
+            50% { filter: drop-shadow(0 0 18px rgba(255,65,108,1)); transform: scale(1.08); }
             100% { filter: drop-shadow(0 0 0 rgba(255,65,108,0)); transform: scale(1); }
           }
-
           .pulse-node {
-            animation: pulse 1s infinite;
+            animation: pulse 1.2s infinite;
           }
         `}</style>
       </div>
