@@ -63,7 +63,7 @@ export default function Simulator() {
     () => detectDeadlockDetailed(graph),
     [graph]
   );
-
+console.log("CYCLE RESULT:", cycleResult);
   const instanceResult = React.useMemo(
     () =>
       detectDeadlockInstances
@@ -71,6 +71,20 @@ export default function Simulator() {
         : { deadlocked: false, deadlockedProcesses: [] },
     [graph]
   );
+console.log("GRAPH DEBUG:");
+console.log("Processes:", graph.processes);
+console.log("Resources:", graph.resources);
+console.log("Edges:", graph.edges);
+
+const debugNodes = [
+  ...graph.processes.map(p => String(p)),
+  ...graph.resources.map(r => typeof r === "string" ? r : r.id)
+];
+console.log("Nodes passed to detectDirectedCycle:", debugNodes);
+
+graph.edges.forEach((e, i) => {
+  console.log(`EDGE ${i}: from="${e.from}" (${typeof e.from}), to="${e.to}" (${typeof e.to}), type=${e.type}`);
+});
 
   const detectionResult = React.useMemo(
     () => ({
@@ -81,6 +95,7 @@ export default function Simulator() {
     }),
     [cycleResult]
   );
+  
 
   useEffect(() => {
     try {

@@ -1,25 +1,41 @@
 // src/utils/rag.js
-import { detectDirectedCycle } from "./detectDeadlock"; 
+import { detectDirectedCycle } from "./detectDeadlock";
 import { detectDeadlockMultiInstance } from "./detectDeadlockMultiInstance";
 
 export function createEmptyGraph() {
   return {
     processes: [],
-    resources: [],          // now: [{ id: "R1", instances: 3 }]
-    edges: []               // now: { from, to, type, amount }
+    resources: [],      // supports both ["R1"] and [{id:"R1"}]
+    edges: []           // edges: { id, from, to, type }
   };
 }
 
+// Helper to normalize resources array to plain IDs
+function normalizeResources(resources) {
+  return resources.map(r => typeof r === "string" ? r : r.id);
+}
+
+// Helper to normalize edges
+function normalizeEdges(edges) {
+  return edges.map(e => ({
+    ...e,
+    from: String(e.from),
+    to: String(e.to)
+  }));
+}
+
 /*
-  Single-instance deadlock detection (cycle-based)
-  Works only when each resource has 1 instance.
+  Detect deadlock (boolean only)
 */
 export function detectDeadlock(graph) {
   const nodes = [
-    ...graph.processes,
-    ...graph.resources.map(r => r.id)
+    ...graph.processes.map(String),
+    ...normalizeResources(graph.resources)
   ];
-  return detectDirectedCycle(graph.edges, nodes).deadlocked;
+
+  const edges = normalizeEdges(graph.edges);
+
+  return detectDirectedCycle(edges, nodes).deadlocked;
 }
 
 /*
@@ -27,22 +43,24 @@ export function detectDeadlock(graph) {
 */
 export function detectDeadlockDetailed(graph) {
   const nodes = [
-    ...graph.processes,
-    ...graph.resources.map(r => r.id)
+    ...graph.processes.map(String),
+    ...normalizeResources(graph.resources)
   ];
-  return detectDirectedCycle(graph.edges, nodes);
+
+  const edges = normalizeEdges(graph.edges);
+
+  return detectDirectedCycle(edges, nodes);
 }
 
 /*
-  Multi-instance matrix-based deadlock detection
-  Uses Available, Allocation, Request matrices
+  Multi-instance (banker's algorithm)
 */
 export function detectDeadlockInstances(graph) {
   return detectDeadlockMultiInstance(graph);
 }
 
 /*
-  Backend communication (unchanged)
+  Backend communication
 */
 export async function sendGraphToBackend(graph) {
   try {

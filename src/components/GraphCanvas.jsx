@@ -59,38 +59,44 @@ export default function GraphCanvas({ graph = {}, positions = {}, cycles = [], o
       offsetY: loc.y - nodePos.y
     };
 
-    function onMove(e) {
-      const s = dragRef.current;
-      if (!s) return;
-      const loc2 = pointerToSvg(e);
-      const newX = loc2.x - s.offsetX;
-      const newY = loc2.y - s.offsetY;
+   function onMove(e) {
+  const s = dragRef.current;
+  if (!s) return;
 
-      const g = svgRef.current.querySelector(`[data-node='${s.nodeId}']`);
-      if (g) {
-        g.setAttribute("transform", `translate(${newX - nodePos.x}, ${newY - nodePos.y})`);
-      }
-    }
+  const loc2 = pointerToSvg(e);
+
+  const newX = loc2.x - s.offsetX;
+  const newY = loc2.y - s.offsetY;
+
+  const g = svgRef.current.querySelector(`[data-node='${s.nodeId}']`);
+  if (g) {
+    g.setAttribute("transform", `translate(${newX}, ${newY})`);
+  }
+}
 
     function onUp(e) {
-      const s = dragRef.current;
-      if (!s) return;
+  const s = dragRef.current;
+  if (!s) return;
 
-      const loc3 = pointerToSvg(e);
-      const finalX = loc3.x - s.offsetX;
-      const finalY = loc3.y - s.offsetY;
+  const loc3 = pointerToSvg(e);
+  const finalX = loc3.x - s.offsetX;
+  const finalY = loc3.y - s.offsetY;
 
-      const g = svgRef.current.querySelector(`[data-node='${s.nodeId}']`);
-      if (g) g.removeAttribute("transform");
+  const g = svgRef.current.querySelector(`[data-node='${s.nodeId}']`);
 
-      if (typeof onPositionChange === "function") {
-        onPositionChange(s.nodeId, Math.round(finalX), Math.round(finalY));
-      }
+  // KEEP TRANSFORM — DO NOT REMOVE IT
+  if (g) g.setAttribute("transform", `translate(${finalX}, ${finalY})`);
 
-      dragRef.current = null;
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    }
+  // Update logical position
+  if (typeof onPositionChange === "function") {
+    onPositionChange(s.nodeId, Math.round(finalX), Math.round(finalY));
+  }
+
+  dragRef.current = null;
+  window.removeEventListener("pointermove", onMove);
+  window.removeEventListener("pointerup", onUp);
+}
+
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);

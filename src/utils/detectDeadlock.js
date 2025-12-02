@@ -1,12 +1,17 @@
 // src/utils/detectDeadlock.js
-// Returns: { deadlocked: boolean, cycles: [ [node,...,node] ] }
+// Fully working RAG cycle detector (supports multi-node PRPPR cycles)
 
-export function detectDirectedCycle(edges, nodes) {
-  // build adjacency list
+export function detectDirectedCycle(edges = [], nodes = []) {
+  // Normalize nodes to strings
+  nodes = nodes.map(n => String(n));
+
+  // Build adjacency list
   const adj = {};
   edges.forEach(e => {
-    if (!adj[e.from]) adj[e.from] = [];
-    adj[e.from].push(e.to);
+    const from = String(e.from);
+    const to = String(e.to);
+    if (!adj[from]) adj[from] = [];
+    adj[from].push(to);
   });
 
   const visited = new Set();
@@ -14,69 +19,58 @@ export function detectDirectedCycle(edges, nodes) {
   const path = [];
   const cycles = [];
 
-  function dfs(node) {
-    visited.add(node);
-    onStack.add(node);
-    path.push(node);
+  function dfs(u) {
+    visited.add(u);
+    onStack.add(u);
+    path.push(u);
 
-    const neighbors = adj[node] || [];
-    for (const next of neighbors) {
-      if (!visited.has(next)) {
-        dfs(next);
-      } else if (onStack.has(next)) {
-        const start = path.indexOf(next);
+    const neighbors = adj[u] || [];
+    for (const v of neighbors) {
+      if (!visited.has(v)) {
+        dfs(v);
+      } else if (onStack.has(v)) {
+        const start = path.indexOf(v);
         if (start !== -1) {
-          const rawCycle = path.slice(start).concat(next); // closed cycle
+          const raw = path.slice(start).concat(v);
 
-          // Count unique processes in cycle (assumes process IDs start with "P")
-          const core = rawCycle.slice(0, rawCycle.length - 1); // remove repeated last
-          const uniqueProcs = new Set(core.filter(n => String(n).startsWith("P")));
-          if (uniqueProcs.size <= 1) {
-            // trivial cycle (single process) — ignore
-            continue;
-          }
+          const core = raw.slice(0, -1);
+          const procSet = new Set(core.filter(x => x.startsWith("P")));
 
-          // Normalize and add unique cycles only
-          const normalized = normalizeCycle(rawCycle);
-          if (!cycles.some(c => cyclesEqual(c, normalized))) {
-            cycles.push(normalized);
+          if (procSet.size <= 1) continue; // ignore trivial 1-process cycles
+
+          const cyc = normalizeCycle(raw);
+          if (!cycles.some(c => cyclesEqual(c, cyc))) {
+            cycles.push(cyc);
           }
         }
       }
     }
 
     path.pop();
-    onStack.delete(node);
+    onStack.delete(u);
   }
 
-  // run DFS from every node to cover disconnected components
-  for (const n of nodes) {
+  nodes.forEach(n => {
     if (!visited.has(n)) dfs(n);
-  }
+  });
 
   return { deadlocked: cycles.length > 0, cycles };
 }
 
-
-// ---- helpers ----
-
-// Normalize cycle to canonical rotation (input: closed cycle where first===last).
-function normalizeCycle(cycle) {
-  // core without the duplicated last node
-  const core = cycle.slice(0, cycle.length - 1);
-
+function normalizeCycle(closed) {
+  const core = closed.slice(0, -1);
   let best = null;
+
   for (let i = 0; i < core.length; i++) {
     const rot = core.slice(i).concat(core.slice(0, i));
-    const key = rot.join(',');
+    const key = rot.join(",");
     if (!best || key < best.key) best = { key, rot };
   }
-  return best.rot.concat(best.rot[0]); // closed canonical cycle
+
+  return best.rot.concat(best.rot[0]);
 }
 
-// Exact equality check for two closed cycles
 function cyclesEqual(a, b) {
-  if (!a || !b) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;
