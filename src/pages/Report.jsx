@@ -56,6 +56,27 @@ export default function Report() {
     yellow: "#f6d860"
   };
 
+  /* ========= ADD NETFLIX-HOVER ONCE ========= */
+  if (!document.getElementById("report-netflix-hover")) {
+    const style = document.createElement("style");
+    style.id = "report-netflix-hover";
+    style.innerHTML = `
+      .netflix-btn {
+        transition: transform .28s cubic-bezier(0.4,0,0.2,1),
+                    box-shadow .28s cubic-bezier(0.4,0,0.2,1),
+                    filter .28s ease;
+        cursor: pointer;
+      }
+      .netflix-btn:hover {
+        transform: translateY(-6px) scale(1.06);
+        box-shadow: 0 18px 32px rgba(0,0,0,0.45),
+                    0 0 22px rgba(80,140,255,0.45) !important;
+        filter: brightness(1.15);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   /* ========= FORMATTED VALUES ========= */
   const formattedResources = graph?.resources?.length
     ? graph.resources.map(r => `${r.id}(${r.instances})`).join(", ")
@@ -95,6 +116,7 @@ export default function Report() {
     ...extra
   });
 
+  /* ========= EXPORT ACTIONS ========= */
   async function exportPDF() {
     try {
       setMsg("Generating PDF...");
@@ -115,7 +137,7 @@ export default function Report() {
     }
   }
 
-  /* ========= REUSABLE CARD STYLE ========= */
+  /* ========= STYLES ========= */
   const card = {
     background: theme.cardBg,
     padding: 22,
@@ -141,12 +163,6 @@ export default function Report() {
     color: "#00101F",
     fontWeight: 800,
     marginRight: 12,
-    transition: "0.25s ease",
-  };
-
-  const buttonHover = {
-    transform: "translateY(-3px) scale(1.05)",
-    boxShadow: theme.shadow
   };
 
   return (
@@ -177,23 +193,17 @@ export default function Report() {
       {/* Navigation Buttons */}
       <div style={{ marginBottom: 20 }}>
         <button
-        className="netflix-btn"
-
+          className="netflix-btn"     // ⭐ USE NETFLIX BUTTON
           onClick={() => nav("/simulator")}
           style={buttonBase}
-          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
         >
           ← Back to Simulator
         </button>
 
         <button
-        className="netflix-btn"
-
+          className="netflix-btn"
           onClick={() => nav("/analysis", { state })}
           style={buttonBase}
-          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
         >
           Back to Analysis
         </button>
@@ -202,31 +212,24 @@ export default function Report() {
       {/* Export Actions */}
       <div style={{ marginTop: 12, marginBottom: 20 }}>
         <button
-        className="netflix-btn"
-
+          className="netflix-btn"
           onClick={exportPDF}
           style={buttonBase}
-          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
         >
           Download PDF
         </button>
 
         <button
+          className="netflix-btn"
           onClick={exportPNG}
           style={buttonBase}
-          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
         >
           Download PNG
         </button>
 
         <button
-        className="netflix-btn"
-
+          className="netflix-btn"
           style={buttonBase}
-          onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-          onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
           onClick={() => {
             const json = JSON.stringify(analysis, null, 2);
             const blob = new Blob([json], { type: "application/json" });

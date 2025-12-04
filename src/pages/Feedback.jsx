@@ -17,6 +17,27 @@ export default function Feedback() {
     glowMedium: "0 0 32px rgba(80,140,255,0.45)",
   };
 
+  /* ⭐ ADD NETFLIX-HOVER EFFECT (Same as Home + Report + Navbar) */
+  if (!document.getElementById("feedback-netflix-hover")) {
+    const style = document.createElement("style");
+    style.id = "feedback-netflix-hover";
+    style.innerHTML = `
+      .netflix-btn {
+        transition: transform .28s cubic-bezier(0.4,0,0.2,1),
+                    box-shadow .28s cubic-bezier(0.4,0,0.2,1),
+                    filter .28s ease;
+        cursor: pointer;
+      }
+      .netflix-btn:hover {
+        transform: translateY(-6px) scale(1.06);
+        box-shadow: 0 18px 32px rgba(0,0,0,0.45),
+                    0 0 22px rgba(80,140,255,0.45);
+        filter: brightness(1.15);
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   /* ---------- WRAPPER ---------- */
   const wrap = {
     padding: "52px 24px",
@@ -67,12 +88,7 @@ export default function Feedback() {
     fontWeight: 800,
     cursor: "pointer",
     boxShadow: theme.glowLight,
-    transition: "transform .25s ease, box-shadow .25s ease",
-  };
-
-  const primaryHover = {
-    transform: "translateY(-3px) scale(1.05)",
-    boxShadow: theme.glowMedium,
+    transition: "0.25s ease",
   };
 
   const secondaryBtn = {
@@ -83,20 +99,14 @@ export default function Feedback() {
     color: theme.paragraph,
     fontWeight: 700,
     cursor: "pointer",
-    transition: "transform .25s ease, box-shadow .25s ease",
-  };
-
-  const secondaryHover = {
-    transform: "translateY(-3px)",
-    boxShadow: theme.glowLight,
-    background: "rgba(255,255,255,0.03)",
+    transition: "0.25s ease",
   };
 
   return (
     <div style={wrap}>
       <div style={card}>
-        
-        {/* Heading (NO Netflix Hover) */}
+
+        {/* Heading */}
         <h2 style={{ margin: 0, color: theme.header, fontSize: 28, fontWeight: 800 }}>
           Feedback & Contact
         </h2>
@@ -124,9 +134,7 @@ export default function Feedback() {
             placeholder="Your name"
             style={inputBase}
             onFocus={(e) => Object.assign(e.currentTarget.style, inputHover)}
-            onBlur={(e) =>
-              Object.assign(e.currentTarget.style, inputBase)
-            }
+            onBlur={(e) => Object.assign(e.currentTarget.style, inputBase)}
           />
 
           {/* EMAIL */}
@@ -136,9 +144,7 @@ export default function Feedback() {
             placeholder="Email"
             style={inputBase}
             onFocus={(e) => Object.assign(e.currentTarget.style, inputHover)}
-            onBlur={(e) =>
-              Object.assign(e.currentTarget.style, inputBase)
-            }
+            onBlur={(e) => Object.assign(e.currentTarget.style, inputBase)}
           />
 
           {/* FEEDBACK TEXT */}
@@ -148,27 +154,23 @@ export default function Feedback() {
             rows={6}
             style={inputBase}
             onFocus={(e) => Object.assign(e.currentTarget.style, inputHover)}
-            onBlur={(e) =>
-              Object.assign(e.currentTarget.style, inputBase)
-            }
+            onBlur={(e) => Object.assign(e.currentTarget.style, inputBase)}
           />
 
           {/* BUTTONS */}
           <div style={{ display: "flex", gap: 10 }}>
             <button
               type="submit"
+              className="netflix-btn"
               style={primaryBtn}
-              onMouseOver={(e) => Object.assign(e.currentTarget.style, primaryHover)}
-              onMouseOut={(e) => Object.assign(e.currentTarget.style, primaryBtn)}
             >
               Send Feedback
             </button>
 
             <button
               type="reset"
+              className="netflix-btn"
               style={secondaryBtn}
-              onMouseOver={(e) => Object.assign(e.currentTarget.style, secondaryHover)}
-              onMouseOut={(e) => Object.assign(e.currentTarget.style, secondaryBtn)}
             >
               Reset
             </button>

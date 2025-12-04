@@ -37,7 +37,35 @@ export default function Analysis() {
     yellow: "#f6d860",
   };
 
-  /* Common Card */
+  /* ---------------- ADD NETFLIX BUTTON HOVER ---------------- */
+  if (!document.getElementById("analysis-netflix-hover")) {
+    const style = document.createElement("style");
+    style.id = "analysis-netflix-hover";
+    style.innerHTML = `
+      .netflix-btn {
+        transition: transform .28s cubic-bezier(0.4,0,0.2,1),
+                    box-shadow .28s cubic-bezier(0.4,0,0.2,1),
+                    filter .28s ease;
+        cursor: pointer;
+      }
+
+      .netflix-btn:hover {
+        transform: translateY(-6px) scale(1.06);
+        box-shadow: 0 18px 32px rgba(0,0,0,0.45),
+                    0 0 22px rgba(80,140,255,0.45);
+        filter: brightness(1.15);
+      }
+
+      .netflix-btn:disabled {
+        opacity: 0.5;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  /* ---------- Shared card style ---------- */
   const card = {
     background: theme.cardBg,
     padding: 24,
@@ -47,7 +75,7 @@ export default function Analysis() {
     marginBottom: 24,
   };
 
-  /* Buttons With Netflix Hover */
+  /* ---------- Button Base ---------- */
   const buttonBase = {
     padding: "10px 16px",
     borderRadius: 12,
@@ -57,16 +85,9 @@ export default function Analysis() {
     color: "#00101F",
     fontWeight: 800,
     marginRight: 12,
-    transition: "0.28s cubic-bezier(0.4, 0, 0.2, 1)",
   };
 
-  const buttonHover = {
-    transform: "translateY(-6px) scale(1.06)",
-    boxShadow: "0 20px 40px rgba(0,0,0,0.45), 0 0 28px rgba(80,140,255,0.45)",
-    filter: "brightness(1.12)",
-  };
-
-  /* Combine cards for left side panels */
+  /* Left panel */
   const leftPanelStyle = {
     ...card,
     background: "rgba(16,22,34,0.92)",
@@ -104,7 +125,7 @@ export default function Analysis() {
           boxShadow: "0 0 24px rgba(0,0,0,0.6)",
         }}
       >
-        {/* TOP BAR */}
+        {/* ---------------- TOP BAR ---------------- */}
         <div
           style={{
             display: "flex",
@@ -113,18 +134,15 @@ export default function Analysis() {
             justifyContent: "space-between",
           }}
         >
-          {/* Left button */}
+          {/* Left Button */}
           <button
             style={buttonBase}
             className="netflix-btn"
-            onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-            onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
             onClick={() => navigate("/simulator")}
           >
             ← Back to Simulator
           </button>
 
-          {/* Title */}
           <h1
             style={{
               margin: 0,
@@ -135,34 +153,29 @@ export default function Analysis() {
             System Analysis
           </h1>
 
-          {/* Right buttons */}
+          {/* Right Buttons */}
           <div style={{ display: "flex", gap: 10 }}>
             <button
-  className="netflix-btn"
-  style={buttonBase}
-  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
-  onClick={() =>
-    navigate("/visualizer", {
-      state: {
-        graph,
-        cycle,
-        analysis,
-        positions: state?.positions || {},
-        backendVisualizationBase64: backendImgB64,
-      },
-    })
-  }
->
-  Go to Visualization
-</button>
-
+              className="netflix-btn"
+              style={buttonBase}
+              onClick={() =>
+                navigate("/visualizer", {
+                  state: {
+                    graph,
+                    cycle,
+                    analysis,
+                    positions: state?.positions || {},
+                    backendVisualizationBase64: backendImgB64,
+                  },
+                })
+              }
+            >
+              Go to Visualization
+            </button>
 
             <button
               className="netflix-btn"
               style={buttonBase}
-              onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-              onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
               onClick={() =>
                 navigate("/report", {
                   state: { ...state, analysis, graph, cycle },
@@ -174,7 +187,7 @@ export default function Analysis() {
           </div>
         </div>
 
-        {/* GRID LAYOUT */}
+        {/* ---------------- GRID LAYOUT ---------------- */}
         <div
           style={{
             display: "grid",
@@ -182,7 +195,7 @@ export default function Analysis() {
             gap: 32,
           }}
         >
-          {/* LEFT SIDE */}
+          {/* ---------------- LEFT SIDE ---------------- */}
           <div>
             {/* SUMMARY */}
             <section style={leftPanelStyle}>
@@ -236,9 +249,7 @@ export default function Analysis() {
                     : theme.cardLight,
                 }}
               >
-                <strong style={{ color: theme.accent }}>
-                  Cycle (Graph-Based)
-                </strong>
+                <strong style={{ color: theme.accent }}>Cycle (Graph-Based)</strong>
                 <div style={{ marginTop: 6, whiteSpace: "pre-line" }}>
                   {formattedCycle}
                 </div>
@@ -289,11 +300,9 @@ export default function Analysis() {
             </section>
           </div>
 
-          {/* RIGHT SIDE — VISUALIZATION SECTION */}
+          {/* ---------------- RIGHT SIDE (Visualization) ---------------- */}
           <div style={leftPanelStyle}>
-            <h2 style={{ marginTop: 0, color: theme.header }}>
-              Visualization
-            </h2>
+            <h2 style={{ marginTop: 0, color: theme.header }}>Visualization</h2>
 
             {backendImgSrc ? (
               <>
@@ -311,8 +320,6 @@ export default function Analysis() {
                 <button
                   className="netflix-btn"
                   style={{ ...buttonBase, width: "100%", marginBottom: 10 }}
-                  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-                  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
                   onClick={() => navigate("/simulator", { state })}
                 >
                   🔄 Regenerate Backend Image
@@ -320,9 +327,12 @@ export default function Analysis() {
 
                 <a
                   className="netflix-btn"
-                  style={{ ...buttonBase, display: "block", textAlign: "center", marginBottom: 10 }}
-                  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-                  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
+                  style={{
+                    ...buttonBase,
+                    display: "block",
+                    textAlign: "center",
+                    marginBottom: 10,
+                  }}
                   href={backendImgSrc}
                   download="backend_visualization.png"
                 >
@@ -332,8 +342,6 @@ export default function Analysis() {
                 <button
                   className="netflix-btn"
                   style={{ ...buttonBase, width: "100%" }}
-                  onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-                  onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
                   onClick={() => setPreviewOpen(true)}
                 >
                   Open Fullscreen Preview
@@ -347,7 +355,7 @@ export default function Analysis() {
           </div>
         </div>
 
-        {/* MODAL PREVIEW */}
+        {/* ---------------- PREVIEW MODAL ---------------- */}
         {previewOpen && backendImgSrc && (
           <div
             style={{
@@ -373,8 +381,6 @@ export default function Analysis() {
               <button
                 className="netflix-btn"
                 style={{ ...buttonBase, marginBottom: 12 }}
-                onMouseOver={(e) => Object.assign(e.currentTarget.style, buttonHover)}
-                onMouseOut={(e) => Object.assign(e.currentTarget.style, buttonBase)}
                 onClick={() => setPreviewOpen(false)}
               >
                 Close

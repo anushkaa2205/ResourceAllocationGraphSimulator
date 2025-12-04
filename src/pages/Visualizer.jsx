@@ -122,6 +122,33 @@ export default function Visualizer() {
     filter: "brightness(1.1)",
   };
 
+  /* ---------- ADD NETFLIX-HOVER (once) ---------- */
+  if (!document.getElementById("visualizer-netflix-hover")) {
+    const style = document.createElement("style");
+    style.id = "visualizer-netflix-hover";
+    style.innerHTML = `
+      .netflix-btn {
+        transition: transform .28s cubic-bezier(0.4,0,0.2,1),
+                    box-shadow .28s cubic-bezier(0.4,0,0.2,1),
+                    filter .28s ease;
+        cursor: pointer;
+      }
+      .netflix-btn:hover {
+        transform: translateY(-6px) scale(1.06);
+        box-shadow: 0 18px 32px rgba(0,0,0,0.45),
+                    0 0 22px rgba(80,140,255,0.45);
+        filter: brightness(1.15);
+      }
+      .netflix-btn:disabled {
+        opacity: 0.5;
+        transform: none !important;
+        box-shadow: none !important;
+        cursor: not-allowed;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   /* ---------------- NODES + EDGES ---------------- */
   const nodes = [
     ...graph.processes.map((id) => ({ id, ntype: "process" })),
@@ -293,12 +320,6 @@ export default function Visualizer() {
           <button
             className="netflix-btn"
             style={buttonBase}
-            onMouseOver={(e) =>
-              Object.assign(e.currentTarget.style, buttonHover)
-            }
-            onMouseOut={(e) =>
-              Object.assign(e.currentTarget.style, buttonBase)
-            }
             disabled={busy}
             onClick={animate}
           >
@@ -309,12 +330,6 @@ export default function Visualizer() {
           <button
             className="netflix-btn"
             style={buttonBase}
-            onMouseOver={(e) =>
-              Object.assign(e.currentTarget.style, buttonHover)
-            }
-            onMouseOut={(e) =>
-              Object.assign(e.currentTarget.style, buttonBase)
-            }
             onClick={() =>
               nav("/analysis", {
                 state: { graph, cycle, analysis },
@@ -327,12 +342,6 @@ export default function Visualizer() {
           <button
             className="netflix-btn"
             style={buttonBase}
-            onMouseOver={(e) =>
-              Object.assign(e.currentTarget.style, buttonHover)
-            }
-            onMouseOut={(e) =>
-              Object.assign(e.currentTarget.style, buttonBase)
-            }
             onClick={() => nav("/simulator")}
           >
             Back to Simulator
@@ -341,12 +350,6 @@ export default function Visualizer() {
           <button
             className="netflix-btn"
             style={buttonBase}
-            onMouseOver={(e) =>
-              Object.assign(e.currentTarget.style, buttonHover)
-            }
-            onMouseOut={(e) =>
-              Object.assign(e.currentTarget.style, buttonBase)
-            }
             onClick={() =>
               nav("/report", {
                 state: { graph, analysis, cycle, positions },

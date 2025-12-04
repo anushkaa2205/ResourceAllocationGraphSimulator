@@ -1,10 +1,12 @@
 // src/components/Navbar.jsx
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import logoImg from "../assets/logo.png";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const githubDocs = "https://github.com/anushkaa2205/ResourceAllocationGraphSimulator.git";
+const [showLogoModal, setShowLogoModal] = useState(false);
 
   /* ------------------------------------------------------------------
      THEME COLORS (Matches Home.jsx AI Blue Theme)
@@ -135,13 +137,43 @@ export default function Navbar() {
         
         {/* BRAND / LOGO */}
         <Link to="/" style={brand}>
-          <div style={logo}>RAG</div>
+  <img
+  src={logoImg}
+  alt="RAG Logo"
+  onClick={() => setShowLogoModal(true)}
+  style={{
+    width: 70,
+    height: 70,
+    objectFit: "contain",
+    padding: 4,
+    borderRadius: 12,
+    background: "rgba(255,255,255,0.04)",
+    boxShadow: "0 0 22px rgba(90,140,255,0.45)",
+    cursor: "pointer",
+    transition: "transform 0.25s ease"
+  }}
+  onMouseOver={(e) => {
+    Object.assign(e.currentTarget.style, {
+      transform: "translateY(-4px) scale(1.06)",
+      boxShadow: "0 0 22px rgba(90,140,255,0.65)",
+    });
+  }}
+  onMouseOut={(e) => {
+    Object.assign(e.currentTarget.style, {
+      transform: "none",
+      boxShadow: "0 0 22px rgba(90,140,255,0.45)",
+    });
+  }}
+/>
 
-          <div style={{ lineHeight: 1 }}>
-            <div style={name}>Resource Allocation Graph Simulator</div>
-            <div style={tagline}>clear technical visualization</div>
-          </div>
-        </Link>
+
+
+  <div style={{ lineHeight: 1 }}>
+    <div style={name}>Resource Allocation Graph Simulator</div>
+    <div style={tagline}>clear technical visualization</div>
+  </div>
+</Link>
+
 
         {/* NAV LINKS */}
         <nav aria-label="primary" style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -264,6 +296,61 @@ export default function Navbar() {
           .nav-desktop { display: none !important; }
         }
       `}</style>
+      {showLogoModal && (
+  <div
+    onClick={() => setShowLogoModal(false)}
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100vw",
+      height: "100vh",
+      background: "rgba(0, 0, 0, 0.82)",  // darker overlay
+      backdropFilter: "blur(4px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 999999,
+      animation: "fadeIn 0.25s ease"
+    }}
+  >
+    <div
+      style={{
+        padding: "22px",
+        background: "rgba(255,255,255,0.03)",
+        borderRadius: "20px",
+        boxShadow: "0 0 40px rgba(90,140,255,0.35)",
+        animation: "popIn 0.3s ease"
+      }}
+      onClick={(e) => e.stopPropagation()}  // prevent closing on inner click
+    >
+      <img
+        src={logoImg}
+        alt="Full Logo"
+        style={{
+          width: "480px",
+          maxWidth: "90vw",
+          height: "auto",
+          objectFit: "contain",
+          display: "block"
+        }}
+      />
+    </div>
+
+    <style>{`
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      @keyframes popIn {
+        0% { transform: scale(0.85); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+    `}</style>
+  </div>
+)}
+
     </header>
   );
 }

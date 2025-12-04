@@ -1,4 +1,5 @@
 import React from "react";  
+import logoImg from "../assets/logo.png";   // or correct path
 
 export default function Home() {
 
@@ -520,30 +521,44 @@ export default function Home() {
           </div>
         </section>
 
-        {/* FOOTER */}
-        <footer style={styles.footer}>
-          <div>
-            <span style={{
-              background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent2})`,
-              padding: "6px 12px",
-              borderRadius: 8,
-              color: "#000",
-              fontWeight: 700,
-            }}>
-              RAG
-            </span>
+       {/* FOOTER */}
+<footer style={styles.footer}>
+  {/* LEFT SIDE: LOGO + COPYRIGHT */}
+  <div style={{ 
+    display: "flex", 
+    alignItems: "center",      // <-- centers logo vertically
+    gap: 12                    // <-- cleaner spacing between logo & text
+  }}>
+    
+    <img
+      src={logoImg}
+      alt="RAG Logo"
+      style={{
+        width: 42,
+        height: 42,
+        objectFit: "contain",
+        borderRadius: 8,
+        background: "rgba(255,255,255,0.06)",
+        padding: 4,
+        boxShadow: "0 0 14px rgba(90,140,255,0.35)",
+        cursor: "pointer",
+        transition: "transform 0.25s ease, box-shadow 0.25s ease",
+      }}
+      className="footer-logo"
+    />
 
-            <span style={{ marginLeft: 10 }}>
-              © {new Date().getFullYear()} RAG Simulator
-            </span>
-          </div>
+    <span style={{ fontSize: 14 }}>
+      © {new Date().getFullYear()} RAG Simulator
+    </span>
+  </div>
 
-          <div>
-            <a style={styles.footerLink} href="/about">About</a> &nbsp;&nbsp;
-            <a style={styles.footerLink} href={githubDocs}>GitHub</a> &nbsp;&nbsp;
-            <a style={styles.footerLink} href="/feedback">Feedback</a>
-          </div>
-        </footer>
+  {/* RIGHT SIDE LINKS */}
+  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+    <a style={styles.footerLink} href="/about">About</a>
+    <a style={styles.footerLink} href={githubDocs}>GitHub</a>
+    <a style={styles.footerLink} href="/feedback">Feedback</a>
+  </div>
+</footer>
 
       </div>
     </div>

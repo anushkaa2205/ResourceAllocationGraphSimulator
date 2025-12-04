@@ -605,3 +605,29 @@ body {
               0 0 28px rgba(80, 140, 255, 0.45);
   filter: brightness(1.12);
 }
+/* hide full-page scrollbar but keep scroll */
+html, body {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+/* Sidebar: hide scrollbar but keep scrolling */
+.sidebar-scroll {
+  -ms-overflow-style: none;  /* Edge/IE */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+  background: transparent;   /* Chrome/Safari */
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+}

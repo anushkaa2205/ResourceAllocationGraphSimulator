@@ -377,7 +377,7 @@ export default function Simulator() {
         height: "100vh",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
+        //overflow: "hidden",
         background:
           "radial-gradient(circle at 50% 0%, #123B86 0%, #071326 50%, #02050A 100%)",
       }}
@@ -417,15 +417,17 @@ export default function Simulator() {
         
         {/* SIDEBAR */}
         <div
-          style={{
-            width: "320px",
-            padding: "18px",
-            background: "rgba(10,16,28,0.9)",
-            backdropFilter: "blur(6px)",
-            borderRight: "1px solid rgba(255,255,255,0.06)",
-            overflowY: "auto",
-          }}
-        >
+  className="sidebar-scroll"
+  style={{
+    width: "320px",
+    padding: "18px",
+    background: "rgba(10,16,28,0.9)",
+    backdropFilter: "blur(6px)",
+    borderRight: "1px solid rgba(255,255,255,0.06)",
+    overflowY: "auto",
+  }}
+>
+
           <ControlsPanel
             processes={graph.processes}
             resources={graph.resources}
@@ -546,6 +548,30 @@ export default function Simulator() {
         backendVisualizationBase64={visualization}
         onRegenerate={analyzeGraph}
       />
+      <style>
+{`
+  /* Hide scrollbars but keep scrolling */
+
+  /* SIDEBAR */
+  .sidebar-scroll {
+    -ms-overflow-style: none;    /* IE/Edge */
+    scrollbar-width: none;       /* Firefox */
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    display: none;               /* Chrome/Safari */
+  }
+
+  /* CANVAS */
+  #rag-canvas-scroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  #rag-canvas-scroll::-webkit-scrollbar {
+    display: none;
+  }
+`}
+</style>
+
     </div>
   );
 }
