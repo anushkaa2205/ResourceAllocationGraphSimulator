@@ -78,7 +78,6 @@ This tool visualizes how processes request and hold resources — and automatica
 Navigate into the frontend folder and install npm packages:
 
 ```bash
-cd Frontend
 npm install
 ```
 
