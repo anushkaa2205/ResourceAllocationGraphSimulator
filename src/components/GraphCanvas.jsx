@@ -1,5 +1,6 @@
 // src/components/GraphCanvas.jsx
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
+import { gsap } from "gsap";
 
 export default function GraphCanvas({
   graph = {},
@@ -49,7 +50,8 @@ export default function GraphCanvas({
       highlightedNodes.add(b);
 
       // store only forward direction
-      highlightedEdges.add(`${a}->${b}`);
+     highlightedEdges.add(`${a}->${b}`.replace("→", "->"));
+
     }
     // Also connect last to first for cycle
     if (cycle.length > 1) {
@@ -101,12 +103,62 @@ export default function GraphCanvas({
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   }
+/* ---------------- GSAP ANIMATIONS ---------------- */
+
+// animate nodes when they appear or change
+useEffect(() => {
+  gsap.from("[data-node]", {
+    opacity: 0,
+    scale: 0.4,
+    duration: 0.6,
+    stagger: 0.05,
+    ease: "back.out(1.8)"
+  });
+}, [processes, resources]);
+
+// animate edges when added
+useEffect(() => {
+  gsap.from("line", {
+    opacity: 0,
+    duration: 0.4,
+    stagger: 0.03,
+    ease: "power2.out"
+  });
+}, [edges]);
+
+// flashing deadlock edges
+useEffect(() => {
+  gsap.fromTo(
+    ".dead-edge",
+    { strokeWidth: 4 },
+    {
+      strokeWidth: 6,
+      repeat: -1,
+      yoyo: true,
+      duration: 0.5,
+      ease: "power1.inOut",
+    }
+  );
+}, [cycles]);
+useEffect(() => {
+  gsap.fromTo(
+    ".dead-edge",
+    { strokeWidth: 4 },
+    {
+      strokeWidth: 7,
+      repeat: -1,
+      yoyo: true,
+      duration: 0.45,
+      ease: "power1.inOut",
+    }
+  );
+}, [cycles]);
 
   /* ---------------- COLORS ---------------- */
   const mag = "#ff79c6";     // request edges
   const cyan = "#8be9fd";    // arrow default
   const alloc = "#33ff9e";   // allocation
-  const danger = "#ff5a7a";  // deadlock edges + nodes
+  const danger = "#f803348f";  // deadlock edges + nodes
 
   /* ---------------- RENDER ---------------- */
   return (
@@ -128,16 +180,21 @@ export default function GraphCanvas({
           <path d="M0,0 L10,6 L0,12 Z" fill={cyan} />
         </marker>
 
-        <marker
-          id="arrow-dead"
-          markerWidth="12"
-          markerHeight="12"
-          refX="10"
-          refY="6"
-          orient="auto"
-        >
-          <path d="M0,0 L10,6 L0,12 Z" fill={danger} />
-        </marker>
+       <marker
+  id="arrow-dead"
+  markerWidth="12"
+  markerHeight="12"
+  refX="10"
+  refY="6"
+  orient="auto"
+>
+  <path d="M0,0 L10,6 L0,12 Z"
+        fill={danger}
+        stroke={danger}
+        strokeWidth="2"
+  />
+</marker>
+
       </defs>
 
       {/* EDGES */}
@@ -149,19 +206,23 @@ export default function GraphCanvas({
         // robust matching
         const key = `${e.from}->${e.to}`;
         const isDead = highlightedEdges.has(key);
+        
 
         return (
           <g key={key}>
             <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={isDead ? danger : e.type === "request" ? mag : alloc}
-              strokeWidth={isDead ? 4 : 3}
-              strokeDasharray={e.type === "request" ? "6 6" : "0"}
-              markerEnd={isDead ? "url(#arrow-dead)" : "url(#arrow-primary)"}
-            />
+  x1={a.x}
+  y1={a.y}
+  x2={b.x}
+  y2={b.y}
+  stroke={isDead ? danger : e.type === "request" ? mag : alloc}
+  strokeWidth={isDead ? 4 : 3}
+  strokeDasharray={e.type === "request" ? "6 6" : "0"}
+  markerEnd={isDead ? "url(#arrow-dead)" : "url(#arrow-primary)"}
+  className={isDead ? "dead-edge" : ""}
+/>
+
+
             {e.amount > 1 && (
               <text
                 x={(a.x + b.x) / 2}
@@ -184,10 +245,12 @@ export default function GraphCanvas({
 
         return (
           <g
-            key={p}
-            onPointerDown={(e) => handlePointerDown(e, p)}
-            style={{ cursor: "grab" }}
-          >
+  key={p}
+  data-node={p}
+  onPointerDown={(e) => handlePointerDown(e, p)}
+  style={{ cursor: "grab" }}
+>
+
             <circle
               cx={pos.x}
               cy={pos.y}
@@ -217,10 +280,12 @@ export default function GraphCanvas({
 
         return (
           <g
-            key={id}
-            onPointerDown={(e) => handlePointerDown(e, id)}
-            style={{ cursor: "grab" }}
-          >
+  key={id}
+  data-node={id}
+  onPointerDown={(e) => handlePointerDown(e, id)}
+  style={{ cursor: "grab" }}
+>
+
             <rect
               x={pos.x - 36}
               y={pos.y - 20}

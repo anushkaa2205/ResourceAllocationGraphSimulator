@@ -19,11 +19,18 @@ import { getFixSuggestions } from "../analysis/advisor";
 import { predictDeadlock } from "../analysis/predict";
 import { isSafeState } from "../analysis/bankers";
 import { computeMetrics } from "../analysis/metrics";
+import { useSearchParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 let EDGE_COUNTER = 1;
 
 export default function Simulator() {
   const navigate = useNavigate();
+const [searchParams] = useSearchParams();
+const [showIntro, setShowIntro] = useState(() => {
+  return new URLSearchParams(window.location.search).get("intro") === "1";
+});
+
 
   /* ---------------- STATE ---------------- */
   const [graph, setGraph] = useState(createEmptyGraph());
@@ -60,6 +67,43 @@ export default function Simulator() {
     }),
     [cycleResult]
   );
+  const [tutorialStep, setTutorialStep] = useState(0);
+const [showTutorial, setShowTutorial] = useState(false);
+const location = useLocation();
+useEffect(() => {
+  setShowTutorial(false);  // tutorial off when reopening
+  setShowIntro(true);      // ✨ ALWAYS show intro when opening Simulator
+}, [location.pathname]);
+
+useEffect(() => {
+  if (!showTutorial) return;
+
+  // Step 1 → Process added
+  if (tutorialStep === 1 && graph.processes.length > 0) {
+    setTutorialStep(2);
+  }
+
+  // Step 2 → Resource added
+  if (tutorialStep === 2 && graph.resources.length > 0) {
+    setTutorialStep(3);
+  }
+
+  // Step 3 → Edge created
+  if (tutorialStep === 3 && graph.edges.length > 0) {
+    setTutorialStep(4);
+  }
+}, [graph, tutorialStep, showTutorial]);
+
+useEffect(() => {
+  if (searchParams.get("loadExample") === "1") {
+    loadSampleGraph(sample_complex);   // or sample_deadlock, your choice
+  }
+}, []);
+useEffect(() => {
+  if (searchParams.get("intro") === "1") {
+    setShowIntro(true);
+  }
+}, []);
 
   /* ---------------- SAVE POSITIONS ---------------- */
   useEffect(() => {
@@ -96,6 +140,7 @@ export default function Simulator() {
 
   /* ---------------- SAMPLE GRAPHS ---------------- */
   function loadSampleGraph(fn) {
+    setShowIntro(false); 
     const g = fn();
     g.edges = g.edges.map((e, i) => ({ ...e, id: e.id || `e${i + 1}` }));
     setGraph(g);
@@ -204,6 +249,7 @@ export default function Simulator() {
   /* ---------------- GRAPH OPERATIONS ---------------- */
 
   const addProcess = () => {
+    setShowIntro(false); 
     const id = "P" + (graph.processes.length + 1);
     setGraph((prev) => ({
       ...prev,
@@ -219,6 +265,7 @@ export default function Simulator() {
   };
 
   const addResource = (instances = 1) => {
+    setShowIntro(false); 
     const id = "R" + (graph.resources.length + 1);
     const newRes = { id, instances: Number(instances) };
 
@@ -274,6 +321,7 @@ export default function Simulator() {
   };
 
   const createEdge = ({ from, to, type, amount = 1 }) => {
+    setShowIntro(false); 
     const id = "e" + EDGE_COUNTER++;
 
     setGraph(prev => ({
@@ -293,10 +341,12 @@ export default function Simulator() {
   };
 
   const resetGraph = () => {
-    setGraph(createEmptyGraph());
-    setPositions({});
-    showToast("Graph Reset");
-  };
+  setGraph(createEmptyGraph());
+  setPositions({});
+  setShowIntro(true);   // show intro again
+  showToast("Graph Reset");
+};
+
 
   const updateNodePosition = useCallback((id, x, y) => {
     setPositions(prev => ({ ...prev, [id]: { x, y } }));
@@ -304,6 +354,7 @@ export default function Simulator() {
 
   /* ---------------- ALIGN TO RAG LAYOUT ---------------- */
   const alignRagLayout = () => {
+    setShowIntro(false); 
     const pos = {};
     const width = 1100;
     const topY = 150;
@@ -326,6 +377,9 @@ export default function Simulator() {
 
   /* ---------------- ANALYZE ---------------- */
   const analyzeGraph = async () => {
+    if (showTutorial && tutorialStep === 4) {
+    setTutorialStep(5);
+  }
     const payload = {
       processes: graph.processes,
       resources: graph.resources,
@@ -452,10 +506,15 @@ export default function Simulator() {
             onLoadMultiInstance={() => loadSampleGraph(sample_multi)}
             onLoadLongCycle={() => loadSampleGraph(sample_long)}
             onLoadWeighted={() => loadSampleGraph(sample_weighted)}
+            onStartTutorial={() => {
+    setShowIntro(false);
+    setShowTutorial(true);
+    setTutorialStep(1);
+  }}
           />
         </div>
-
         {/* CANVAS AREA */}
+        
         <div
           style={{
             flex: 1,
@@ -478,6 +537,182 @@ export default function Simulator() {
           >
             {/* THIS WRAPPER PREVENTS CLIPPING */}
             <div style={{ minWidth: "1500px", minHeight: "800px", position: "relative" }}>
+             {showIntro && (
+  <>
+    {/* DARK OVERLAY */}
+    <div className="intro-overlay" onClick={() => setShowIntro(false)} />
+
+    {/* INTRO CARD */}
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "85%",
+        maxWidth: 900,
+        padding: 30,
+        borderRadius: 18,
+        textAlign: "center",
+        background: "rgba(10,20,40,0.92)",
+        border: "1px solid rgba(90,140,255,0.25)",
+        boxShadow: "0 0 40px rgba(90,140,255,0.4)",
+        backdropFilter: "blur(10px)",
+        animation: "fadeIn 0.3s ease",
+        zIndex: 50,
+      }}
+    >
+      <h2 style={{ color: "#fff", marginBottom: 10, fontSize: 30 }}>
+        Welcome to the Simulator 🎉
+      </h2>
+
+      <p style={{ color: "#A3AEC2", marginBottom: 20 }}>
+        Start by adding <b>Processes</b>, <b>Resources</b>, creating <b>Edges</b>,
+        or loading a ready-made <b>Sample Graph</b>.
+      </p>
+
+      {/* Feature Row */}
+      <div style={{ display: "flex", justifyContent: "center", gap: 18, marginBottom: 20 }}>
+        {[
+          { title: "Add Processes", desc: "Represent tasks in the system." },
+          { title: "Add Resources", desc: "Support multiple instances." },
+          { title: "Create Edges", desc: "Model requests & allocations." },
+          { title: "Analyze Deadlocks", desc: "Run automatic cycle detection." },
+        ].map((box, i) => (
+          <div
+            key={i}
+            style={{
+              width: 180,
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: 12,
+              padding: 14,
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}
+          >
+            <div style={{ color: "#fff", fontWeight: 700 }}>{box.title}</div>
+            <div style={{ color: "#A3AEC2", fontSize: 13, marginTop: 6 }}>
+              {box.desc}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => setShowIntro(false)}
+        style={{
+          padding: "10px 22px",
+          borderRadius: 12,
+          border: "none",
+          cursor: "pointer",
+          background: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
+          color: "#00101F",
+          fontWeight: 800,
+          marginTop: 5,
+        }}
+      >
+        Got it, Start Building →
+      </button>
+    </div>
+  </>
+)}
+{showTutorial && (
+  <div
+    style={{
+      position: "absolute",
+      top: "20px",
+      right: "20px",
+      width: "300px",
+      padding: "18px 20px",
+      background: "rgba(10,20,40,0.92)",
+      border: "1px solid rgba(120,160,255,0.35)",
+      borderRadius: 12,
+      color: "white",
+      zIndex: 50,
+      boxShadow: "0 0 22px rgba(90,140,255,0.45)",
+      animation: "fadeIn 0.25s ease",
+    }}
+  >
+    <h3 style={{ margin: 0, marginBottom: 10, color: "#78A7FF" }}>
+      Tutorial Guide 📘
+    </h3>
+
+    {tutorialStep === 1 && (
+      <p>Step 1: Click <b>Add Process</b> to create your first process.</p>
+    )}
+    {tutorialStep === 2 && (
+      <p>Step 2: Now click <b>Add Resource</b> to add a resource.</p>
+    )}
+    {tutorialStep === 3 && (
+      <p>Step 3: Use <b>Create Edge</b> to draw Request or Allocation edges.</p>
+    )}
+    {tutorialStep === 4 && (
+      <p>Step 4: Click <b>Analyze Graph</b> to detect deadlocks.</p>
+    )}
+    {tutorialStep === 5 && (
+      <p>
+        🎉 <b>Tutorial Complete!</b><br />
+        You now understand how to build and analyze RAG graphs.
+      </p>
+    )}
+
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+      {tutorialStep < 5 && (
+        <>
+          <button
+            onClick={() => setShowTutorial(false)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.15)",
+              border: "none",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+
+          <button
+            onClick={() => setTutorialStep(tutorialStep + 1)}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 8,
+              background: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
+              border: "none",
+              color: "#00101F",
+              fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            Next →
+          </button>
+        </>
+      )}
+
+      {tutorialStep === 5 && (
+        <button
+          onClick={() => {
+            setShowTutorial(false);
+            setTutorialStep(1);
+          }}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 8,
+            background: "linear-gradient(90deg,#5CAEFF,#78A7FF)",
+            border: "none",
+            color: "#00101F",
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          Finish
+        </button>
+      )}
+    </div>
+  </div>
+)}
+
+
               <GraphCanvas
                 graph={graph}
                 cycles={detectionResult.deadlocked ? detectionResult.cycles : []}
@@ -575,3 +810,53 @@ export default function Simulator() {
     </div>
   );
 }
+<style>
+{`
+  /* Fade overlay */
+  .intro-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px);
+    animation: fadeIn 0.3s ease forwards;
+    z-index: 40;
+  }
+
+  /* Fade animations */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  /* Help Button */
+  .help-btn {
+    position: absolute;
+    bottom: 22px;
+    right: 22px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg,#5CAEFF,#78A7FF);
+    box-shadow: 0 0 18px rgba(90,140,255,0.45);
+    border: none;
+    cursor: pointer;
+    font-size: 24px;
+    color: #00101F;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    z-index: 50;
+  }
+
+  .help-btn:hover {
+    transform: translateY(-4px) scale(1.06);
+    box-shadow: 0 0 28px rgba(110,170,255,0.65);
+  }
+`}
+</style>

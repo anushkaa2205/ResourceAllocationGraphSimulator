@@ -1,7 +1,9 @@
 import React from "react";  
 import logoImg from "../assets/logo.png";   // or correct path
+import { useNavigate } from "react-router-dom";
 
 export default function Home() {
+  const navigate = useNavigate();
 
   // Inject animations once
   if (!document.getElementById("home-animations")) {
@@ -306,17 +308,23 @@ export default function Home() {
           </div>
 
           <div style={styles.ctas}>
-            <a href="/simulator">
-              <button className="hover-glow" style={styles.primaryBtn}>
-                Launch Simulator
-              </button>
-            </a>
+            <button
+  className="hover-glow"
+  style={styles.primaryBtn}
+  onClick={() => navigate("/simulator?intro=1")}
+>
+  Start Simulator
+</button>
 
-            <a href="/simulator#examples">
-              <button className="hover-glow" style={styles.primaryBtn}>
-                View Examples
-              </button>
-            </a>
+
+            <button
+  className="hover-glow"
+  style={styles.primaryBtn}
+  onClick={() => navigate("/simulator?loadExample=1")}
+>
+  View Examples
+</button>
+
           </div>
         </section>
 

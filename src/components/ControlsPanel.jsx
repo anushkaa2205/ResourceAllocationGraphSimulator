@@ -30,6 +30,7 @@ export default function ControlsPanel({
   onLoadMultiInstance = () => {},
   onLoadLongCycle = () => {},
   onLoadWeighted = () => {},
+  onStartTutorial = () => {},
 }) {
   // Create Edge states
   const [proc, setProc] = useState("");
@@ -169,11 +170,18 @@ export default function ControlsPanel({
           onClick={onResetGraph}>
           <FiTrash2 /> &nbsp; Reset Entire Graph
         </button>
-
+            <button
+  className="btn ghost"
+  style={{ width: "100%", marginBottom: 8 }}
+  onClick={() => onStartTutorial()}
+>
+  📘 Tutorial Guide
+</button>
         <button className="btn primary" style={{ width: "100%" }}
           onClick={analyzeGraph}>
           <FiSearch /> &nbsp; Analyze Graph
         </button>
+        
       </div>
 
 
