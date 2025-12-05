@@ -287,7 +287,7 @@ export default function Analysis() {
 
             {/* SAFETY */}
             <section style={leftPanelStyle}>
-              <h3 style={{ color: theme.header }}>Safety / Banker's Info</h3>
+              <h3 style={{ color: theme.header }}>Safety</h3>
               <div style={{ color: theme.text }}>
                 {analysis?.safety?.message || "(none)"}
               </div>

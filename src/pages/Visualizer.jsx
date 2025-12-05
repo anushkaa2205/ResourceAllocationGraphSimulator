@@ -641,8 +641,11 @@ function resetSVG() {
           .pulse-node {
             animation: pulse 1.2s infinite;
           }
-            .netflix-btn {
-  filter: brightness(1.3);
+        .netflix-btn {
+  filter: brightness(1);
+  opacity: 1 !important;
+}
+
 }
 
         `}</style>
