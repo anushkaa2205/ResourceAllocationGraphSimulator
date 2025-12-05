@@ -32,10 +32,11 @@ export function detectDeadlock(graph) {
     ...graph.processes.map(String),
     ...normalizeResources(graph.resources)
   ];
+const edges = normalizeEdges(
+  graph.edges.filter(e => e.type !== "claim")
+);
+return detectDirectedCycle(edges, nodes).deadlocked;
 
-  const edges = normalizeEdges(graph.edges);
-
-  return detectDirectedCycle(edges, nodes).deadlocked;
 }
 
 /*
@@ -46,10 +47,11 @@ export function detectDeadlockDetailed(graph) {
     ...graph.processes.map(String),
     ...normalizeResources(graph.resources)
   ];
+const edges = normalizeEdges(
+  graph.edges.filter(e => e.type !== "claim")
+);
+return detectDirectedCycle(edges, nodes);
 
-  const edges = normalizeEdges(graph.edges);
-
-  return detectDirectedCycle(edges, nodes);
 }
 
 /*

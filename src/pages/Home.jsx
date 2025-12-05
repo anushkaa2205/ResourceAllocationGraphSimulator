@@ -1,6 +1,23 @@
 import React from "react";  
-import logoImg from "../assets/logo.png";   // or correct path
+import logoImg from "../assets/logo.png";
 import { useNavigate } from "react-router-dom";
+
+// Inject Inter font for modern look
+if (!document.getElementById("inter-font")) {
+  const link = document.createElement("link");
+  link.id = "inter-font";
+  link.rel = "stylesheet";
+  link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap";
+  document.head.appendChild(link);
+}
+
+// Modern font styles
+const fontStyles = {
+  fontFamily: "'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif",
+  letterSpacing: "0.03em",
+  WebkitFontSmoothing: "antialiased",
+  MozOsxFontSmoothing: "grayscale",
+};
 
 export default function Home() {
   const navigate = useNavigate();
@@ -76,6 +93,7 @@ export default function Home() {
 
   const styles = {
     body: {
+      ...fontStyles,
       minHeight: "100vh",
       minWidth: "100vw",
       background: theme.bg,
@@ -86,6 +104,7 @@ export default function Home() {
     },
 
     container: {
+      ...fontStyles,
       width: "100vw",
       minHeight: "100vh",
       display: "flex",
@@ -98,6 +117,7 @@ export default function Home() {
     },
 
     hero: {
+      ...fontStyles,
       width: "100%",
       maxWidth: "900px",
       display: "flex",
@@ -110,6 +130,7 @@ export default function Home() {
     },
 
     badge: {
+      ...fontStyles,
       display: "inline-block",
       background: theme.accent,
       color: "#0F1520",
@@ -121,6 +142,7 @@ export default function Home() {
     },
 
     heroTitle: {
+      ...fontStyles,
       fontSize: 44,
       fontWeight: 800,
       color: theme.header,
@@ -130,6 +152,7 @@ export default function Home() {
     },
 
     heroSubtitle: {
+      ...fontStyles,
       fontSize: 18,
       color: theme.paragraph,
       margin: "18px 0 0 0",
@@ -137,6 +160,7 @@ export default function Home() {
     },
 
     ctas: {
+      ...fontStyles,
       display: "flex",
       gap: 16,
       marginTop: 28,
@@ -144,6 +168,7 @@ export default function Home() {
     },
 
     primaryBtn: {
+      ...fontStyles,
       background: `linear-gradient(90deg, ${theme.primary}, ${theme.accent2})`,
       color: theme.buttonText,
       padding: "12px 28px",
@@ -156,6 +181,7 @@ export default function Home() {
     },
 
     preview: {
+      ...fontStyles,
       margin: "40px 0 28px 0",
       padding: 28,
       borderRadius: 18,
@@ -170,6 +196,7 @@ export default function Home() {
     },
 
     previewTitle: {
+      ...fontStyles,
       fontWeight: 700,
       fontSize: 22,
       color: theme.header,
@@ -177,12 +204,14 @@ export default function Home() {
     },
 
     previewText: {
+      ...fontStyles,
       fontSize: 15,
       color: theme.text,
       textAlign: "center",
     },
 
     featuresTitle: {
+      ...fontStyles,
       fontSize: 26,
       color: theme.header,
       fontWeight: 700,
@@ -191,11 +220,13 @@ export default function Home() {
     },
 
     featuresSection: {
+      ...fontStyles,
       width: "100%",
       margin: "28px 0",
     },
 
     featuresGrid: {
+      ...fontStyles,
       display: "grid",
       gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
       gap: 22,
@@ -205,6 +236,7 @@ export default function Home() {
     },
 
     card: {
+      ...fontStyles,
       background: theme.cardBg,
       borderRadius: 14,
       padding: 22,
@@ -215,6 +247,7 @@ export default function Home() {
     },
 
     cardTitle: {
+      ...fontStyles,
       margin: 0,
       fontWeight: 700,
       fontSize: 18,
@@ -222,12 +255,14 @@ export default function Home() {
     },
 
     cardText: {
+      ...fontStyles,
       marginTop: 10,
       color: theme.paragraph,
       fontSize: 15,
     },
 
     howItWorks: {
+      ...fontStyles,
       width: "100%",
       maxWidth: 900,
       margin: "38px auto 0 auto",
@@ -235,6 +270,7 @@ export default function Home() {
     },
 
     howTitle: {
+      ...fontStyles,
       fontSize: 22,
       color: theme.header,
       fontWeight: 700,
@@ -242,11 +278,13 @@ export default function Home() {
     },
 
     howDesc: {
+      ...fontStyles,
       color: theme.paragraph,
       fontSize: 14,
     },
 
     finalCta: {
+      ...fontStyles,
       margin: "40px 0 0 0",
       padding: 28,
       borderRadius: 18,
@@ -258,6 +296,7 @@ export default function Home() {
     },
 
     finalCtaTitle: {
+      ...fontStyles,
       fontSize: 20,
       color: theme.header,
       fontWeight: 700,
@@ -265,12 +304,14 @@ export default function Home() {
     },
 
     finalCtaText: {
+      ...fontStyles,
       color: theme.paragraph,
       fontSize: 15,
       marginBottom: 18,
     },
 
     footer: {
+      ...fontStyles,
       width: "100%",
       display: "flex",
       justifyContent: "space-between",
@@ -283,6 +324,7 @@ export default function Home() {
     },
 
     footerLink: {
+      ...fontStyles,
       color: theme.primary,
       textDecoration: "none",
       fontWeight: 600,

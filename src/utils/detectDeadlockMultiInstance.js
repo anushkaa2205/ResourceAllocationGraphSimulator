@@ -22,13 +22,18 @@ export function detectDeadlockMultiInstance(graph) {
     const pIdx = processes.indexOf(e.from.startsWith("P") ? e.from : e.to);
     const rIdx = resIndex[e.from.startsWith("R") ? e.from : e.to];
     const isAlloc = e.type === "allocation";
+const isRequest = e.type === "request";
+// CLAIM EDGES MUST BE IGNORED
 
-    if (isAlloc) {
-      Allocation[pIdx][rIdx] += e.amount;
-      Available[rIdx] -= e.amount;
-    } else {
-      Request[pIdx][rIdx] += e.amount;
-    }
+if (isAlloc) {
+  Allocation[pIdx][rIdx] += e.amount;
+  Available[rIdx] -= e.amount;
+} 
+else if (isRequest) {
+  Request[pIdx][rIdx] += e.amount;
+}
+// else if (e.type === "claim") → ignore for multi-instance
+
   });
 
   const Finish = Array(n).fill(false);

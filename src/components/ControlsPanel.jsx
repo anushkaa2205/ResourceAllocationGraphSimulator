@@ -54,12 +54,23 @@ export default function ControlsPanel({
   function createEdgeHandler() {
     if (!proc || !res) return alert("Please select process and resource.");
 
-    const payload = {
-      from: type === "request" ? proc : res,
-      to: type === "request" ? res : proc,
-      type,
-      amount: Number(amount),
-    };
+    let from, to;
+
+if (type === "request") {
+  from = proc;
+  to = res;
+} 
+else if (type === "allocation") {
+  from = res;
+  to = proc;
+}
+else if (type === "claim") {
+  from = proc;   // ALWAYS P → R
+  to = res;
+}
+
+const payload = { from, to, type, amount: Number(amount) };
+
 
     onCreateEdge(payload);
     setAmount(1);
@@ -215,25 +226,35 @@ export default function ControlsPanel({
         </select>
 
         {/* TYPE RADIO */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-          <label>
-            <input
-              type="radio"
-              checked={type === "request"}
-              onChange={() => setType("request")}
-            />{" "}
-            Request (P → R)
-          </label>
+        {/* TYPE RADIO */}
+<div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+  <label>
+    <input
+      type="radio"
+      checked={type === "request"}
+      onChange={() => setType("request")}
+    />{" "}
+    Request (P → R)
+  </label>
 
-          <label>
-            <input
-              type="radio"
-              checked={type === "allocation"}
-              onChange={() => setType("allocation")}
-            />{" "}
-            Allocation (R → P)
-          </label>
-        </div>
+  <label>
+    <input
+      type="radio"
+      checked={type === "allocation"}
+      onChange={() => setType("allocation")}
+    />{" "}
+    Allocation (R → P)
+  </label>
+
+  <label>
+    <input
+      type="radio"
+      checked={type === "claim"}
+      onChange={() => setType("claim")}
+    />{" "}
+    Claim (P → R)
+  </label>
+</div>
 
         {/* AMOUNT */}
         <label style={{ fontSize: 14 }}>Amount</label>

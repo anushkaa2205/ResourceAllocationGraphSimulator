@@ -450,7 +450,7 @@ useEffect(() => {
       >
         <h1 style={{ color: "white", margin: 0 }}>RAG Simulator</h1>
 
-        <button
+        {/* <button
           style={{
             padding: "10px 16px",
             borderRadius: 12,
@@ -463,7 +463,7 @@ useEffect(() => {
           onClick={() => navigate("/visualizer")}
         >
           Go to Visualizer →
-        </button>
+        </button> */}
       </div>
 
       {/* BODY */}

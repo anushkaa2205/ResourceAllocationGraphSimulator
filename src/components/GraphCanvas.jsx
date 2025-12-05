@@ -215,9 +215,27 @@ useEffect(() => {
   y1={a.y}
   x2={b.x}
   y2={b.y}
-  stroke={isDead ? danger : e.type === "request" ? mag : alloc}
-  strokeWidth={isDead ? 4 : 3}
-  strokeDasharray={e.type === "request" ? "6 6" : "0"}
+  stroke={
+  isDead
+    ? danger
+    : e.type === "request"
+    ? mag
+    : e.type === "allocation"
+    ? alloc
+    : e.type === "claim"
+    ? "#7b5cff"
+    : "#ffffff"
+}
+
+strokeWidth={isDead ? 4 : 3}
+strokeDasharray={
+  isDead
+    ? "0"
+    : e.type === "claim"
+    ? "6 6"     // ONLY claim is dashed
+    : "0"       // request & allocation solid
+}
+
   markerEnd={isDead ? "url(#arrow-dead)" : "url(#arrow-primary)"}
   className={isDead ? "dead-edge" : ""}
 />
