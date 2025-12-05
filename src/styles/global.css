@@ -631,3 +631,28 @@ body::-webkit-scrollbar {
 .sidebar-scroll::-webkit-scrollbar-thumb {
   background: transparent;
 }
+
+/* Add to your global CSS or component CSS */
+.ripple-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-btn:active .ripple {
+  animation: ripple-effect 0.5s linear;
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(90, 174, 255, 0.4);
+  transform: scale(0);
+  pointer-events: none;
+}
+
+@keyframes ripple-effect {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}

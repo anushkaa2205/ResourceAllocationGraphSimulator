@@ -1,5 +1,8 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { gsap } from "gsap";
+import { MotionPathPlugin } from "gsap/MotionPathPlugin";
+gsap.registerPlugin(MotionPathPlugin);
 
 /* ---------------- THEME ---------------- */
 const theme = {
@@ -187,104 +190,144 @@ export default function Visualizer() {
   });
 
   const deadNodes = new Set(cycle || []);
+/* ---------------- REFS ---------------- */
+const svgRef = useRef(null);
+const nodeRefs = useRef({});
+const edgeRefs = useRef({});
+const tokenRef = useRef(null);
 
-  /* ---------------- REFS ---------------- */
-  const svgRef = useRef(null);
-  const nodeRefs = useRef({});
-  const edgeRefs = useRef({});
-  const tokenRef = useRef(null);
+const [busy, setBusy] = useState(false);
+const [hoveredNode, setHoveredNode] = useState(null);
+const [hoveredEdge, setHoveredEdge] = useState(null);
 
-  const [busy, setBusy] = useState(false);
-  const [hoveredNode, setHoveredNode] = useState(null);
-  const [hoveredEdge, setHoveredEdge] = useState(null);
+/* ---------------- HELPER FUNCTIONS (must be ABOVE JSX) ---------------- */
 
-  function registerNodeRef(id, el) {
-    if (el) nodeRefs.current[id] = el;
+function registerNodeRef(id, el) {
+  if (el) nodeRefs.current[id] = el;
+}
+
+function registerEdgeRef(key, el) {
+  if (el) edgeRefs.current[key] = el;
+}
+
+function edgeKey(e, i) {
+  return `${e.from}->${e.to}#${i}`;
+}
+
+function isCycleEdge(e) {
+  for (let i = 0; i < cycle.length; i++) {
+    const a = cycle[i];
+    const b = cycle[(i + 1) % cycle.length];
+    if (e.from === a && e.to === b) return true;
   }
+  return false;
+}
 
-  function registerEdgeRef(key, el) {
-    if (!el) return;
-    edgeRefs.current[key] = el;
-  }
+/* ---------------- AUTHOR UI ANIMATIONS (run ONLY on page load) ---------------- */
+useEffect(() => {
+  gsap.from(svgRef.current, {
+    opacity: 0,
+    y: -20,
+    duration: 0.8,
+    ease: "power3.out",
+  });
 
-  function edgeKey(e, i) {
-    return `${e.from}->${e.to}#${i}`;
-  }
+  gsap.from(".right-panel", {
+    x: 40,
+    opacity: 0,
+    duration: 0.9,
+    ease: "power3.out",
+  });
 
-  function isCycleEdge(e) {
-    for (let i = 0; i < cycle.length; i++) {
-      const a = cycle[i];
-      const b = cycle[(i + 1) % cycle.length];
-      if (e.from === a && e.to === b) return true;
-    }
-    return false;
-  }
+  gsap.from(".netflix-btn", {
+    opacity: 0,
+    scale: 0.9,
+    stagger: 0.05,
+    duration: 0.5,
+    ease: "back.out(2)",
+  });
+}, []);
 
-  /* ---------------- RESET ---------------- */
-  function resetSVG() {
-    Object.values(edgeRefs.current).forEach((el) => {
-      el.style.opacity = 1;
-    });
-    Object.values(nodeRefs.current).forEach((el) =>
-      el?.classList.remove("pulse-node", "node-pop")
-    );
-    if (tokenRef.current) tokenRef.current.style.opacity = 0;
-  }
+/* ---------------- GSAP EDGE DRAW (only on graph render) ---------------- */
+useEffect(() => {
+  const lines = Object.values(edgeRefs.current);
+  if (!lines.length) return;
 
-  // Animation state
-  const [animationStep, setAnimationStep] = useState(0);
+  lines.forEach((line) => {
+    try {
+      const len = line.getTotalLength();
+      line.style.strokeDasharray = len;
+      line.style.strokeDashoffset = len;
+    } catch {}
+  });
+
+  gsap.to(lines, {
+    strokeDashoffset: 0,
+    duration: 1.2,
+    stagger: 0.03,
+    ease: "power2.out",
+  });
+}, [edges.length]);
+
+/* ---------------- RESET ---------------- */
+function resetSVG() {
+  Object.values(edgeRefs.current).forEach((el) => {
+    el.style.opacity = 1;
+  });
+  Object.values(nodeRefs.current).forEach((el) =>
+    el?.classList.remove("pulse-node", "node-pop")
+  );
+  if (tokenRef.current) tokenRef.current.style.opacity = 0;
+}
 
   /* ---------------- ANIMATION ---------------- */
   // Animate full deadlock cycle as a "video"
   async function animate() {
-    if (busy) return;
-    setBusy(true);
-    resetSVG();
+  if (busy) return;
+  setBusy(true);
+  resetSVG();
 
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const orderedNodes = [...nodes];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const orderedNodes = [...nodes];
 
-    // Pop nodes one by one
-    for (let n of orderedNodes) {
-      nodeRefs.current[n.id]?.classList.add("node-pop");
-      await sleep(180); // Slowed down node pop
-    }
-
-    // Animate token moving along deadlock cycle edges
-    for (let i = 0; i < cycle.length; i++) {
-      const from = cycle[i];
-      const to = cycle[(i + 1) % cycle.length];
-      const A = coords[from];
-      const B = coords[to];
-
-      // Show token at start
-      if (tokenRef.current) {
-        tokenRef.current.style.opacity = 1;
-        tokenRef.current.setAttribute("cx", A.x);
-        tokenRef.current.setAttribute("cy", A.y);
-      }
-
-      // Animate token moving (slower, more visible)
-      for (let t = 0; t <= 1; t += 0.02) {
-        const x = A.x + (B.x - A.x) * t;
-        const y = A.y + (B.y - A.y) * t;
-        if (tokenRef.current) {
-          tokenRef.current.setAttribute("cx", x);
-          tokenRef.current.setAttribute("cy", y);
-        }
-        await sleep(30); // Slower movement
-      }
-
-      // Pulse node at arrival
-      nodeRefs.current[to]?.classList.add("pulse-node");
-      await sleep(300); // Slower pulse
-    }
-
-    // Hide token
-    if (tokenRef.current) tokenRef.current.style.opacity = 0;
-
-    setBusy(false);
+  // Pop nodes one by one
+  for (let n of orderedNodes) {
+    nodeRefs.current[n.id]?.classList.add("node-pop");
+    await sleep(180);
   }
+
+  // Animate token moving along deadlock cycle edges
+  for (let i = 0; i < cycle.length; i++) {
+    const from = cycle[i];
+    const to = cycle[(i + 1) % cycle.length];
+    const A = coords[from];
+    const B = coords[to];
+
+    // Show token at start
+    if (tokenRef.current) {
+      tokenRef.current.style.opacity = 1;
+      tokenRef.current.setAttribute("cx", A.x);
+      tokenRef.current.setAttribute("cy", A.y);
+    }
+
+    // Move token
+    for (let t = 0; t <= 1; t += 0.02) {
+      const x = A.x + (B.x - A.x) * t;
+      const y = A.y + (B.y - A.y) * t;
+      tokenRef.current?.setAttribute("cx", x);
+      tokenRef.current?.setAttribute("cy", y);
+      await sleep(30);
+    }
+
+    // Pulse node at arrival
+    nodeRefs.current[to]?.classList.add("pulse-node");
+    await sleep(300);
+  }
+
+  // Hide token
+  tokenRef.current.style.opacity = 0;
+  setBusy(false);
+}
 
   /* ---------------- RENDER ---------------- */
   return (
@@ -553,7 +596,7 @@ export default function Visualizer() {
             </svg>
           </div>
           {/* RIGHT PANEL */}
-          <div style={{ width: 360 }}>
+<div className="right-panel" style={{ width: 360 }}>
             <div
               style={{
                 background: isDeadlock ? "#6a040f" : "#0b1220",
@@ -598,6 +641,10 @@ export default function Visualizer() {
           .pulse-node {
             animation: pulse 1.2s infinite;
           }
+            .netflix-btn {
+  filter: brightness(1.3);
+}
+
         `}</style>
       </div>
     </div>
